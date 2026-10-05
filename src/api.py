@@ -4,7 +4,9 @@ from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse
 
+from src.data_loader import PROJECT_ROOT
 from src.predict import load_model, predict_fire_risk
 
 
@@ -29,6 +31,12 @@ class PredictionResponse(BaseModel):
 
 
 app = FastAPI(title="Forest Fire Risk Prediction Prototype")
+DASHBOARD_FILE = PROJECT_ROOT / "dashboard" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def dashboard():
+    return FileResponse(DASHBOARD_FILE)
 
 
 @lru_cache(maxsize=1)

@@ -82,6 +82,15 @@ python -m src.predict --temperature 34 --humidity 31 --wind-speed 18 --rainfall 
 python -m unittest discover -s tests -v
 ```
 
+**Local GIS demo:** train the model, then start the existing FastAPI app and open the dashboard:
+
+```bash
+python -m src.train
+uvicorn src.api:app --reload
+```
+
+Open `http://127.0.0.1:8000/`. The dashboard calls the saved model for one environmental risk estimate and animates a separate 12 × 12 grid of 500 m cells. The grid uses an illustrative wind-biased cellular automaton, not a calibrated spread model. Its Shimla coordinates are synthetic and are not linked to the Algerian training observations. Map tiles require an internet connection.
+
 Training saves `models/random_forest_baseline.joblib`, including feature order, target mapping, and missing-value policy. The feature-importance chart is saved at `reports/baseline_feature_importance.png`.
 
 On the current 49-row holdout, the ten-feature Random Forest scored 1.000 for accuracy, precision, recall, F1, and ROC-AUC; its confusion matrix had no errors. Logistic Regression scored 0.939 accuracy, 0.931 precision, 0.964 recall, 0.947 F1, and 0.993 ROC-AUC. The four raw-weather-only experiment scored 0.816 accuracy. These unusually strong index-feature results are a reason for caution, not evidence of reliable operational prediction. False positives can trigger unnecessary response; false negatives can miss a fire event and may be more consequential. Threshold choice trades one kind of error against the other.

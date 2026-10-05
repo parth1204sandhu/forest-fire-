@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f5ef">
+  <title>Fireline | Risk & Spread Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f5ef;
+      --panel: #fbfcf8;
+      --ink: #18241f;
+      --muted: #69756e;
+      --line: #dce3da;
+      --forest: #38634e;
+      --forest-dark: #18392c;
+      --signal: #ef6b3b;
+      --amber: #d9a933;
+      --burned: #3d4542;
+      --mono: "IBM Plex Mono", monospace;
+      --sans: "DM Sans", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .app-shell { display: flex; height: 100%; flex-direction: column; }
+    .topbar {
+      z-index: 500;
+      display: flex;
+      height: 64px;
+      flex: 0 0 64px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      padding: 0 22px;
+    }
+    .brand, .brand-lockup, .top-actions, .status-left, .status-right,
+    .section-heading, .control-row, .metric-line, .map-stamp-heading,
+    .map-legend, .legend-item, .cell-heading, .api-state, .button-row {
+      display: flex;
+      align-items: center;
+    }
+    .brand-lockup { gap: 11px; }
+    .brand-mark {
+      display: grid;
+      width: 35px;
+      height: 35px;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--forest-dark);
+      color: #eef4e9;
+    }
+    .brand-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+    .brand-caption {
+      margin-top: 2px;
+      color: var(--muted);
+      font: 10px var(--mono);
+      text-transform: uppercase;
+    }
+    .top-actions { gap: 12px; }
+    .demo-tag, .api-state, .mini-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #e8c988;
+      border-radius: 999px;
+      background: #fff7e5;
+      color: #795b18;
+      font: 10px var(--mono);
+      letter-spacing: .04em;
+      padding: 6px 9px;
+      text-transform: uppercase;
+    }
+    .icon-button, .control-button, .primary-button {
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .icon-button { width: 36px; padding: 0; }
+    .control-button { padding: 0 11px; font-size: 12px; font-weight: 600; }
+    .primary-button {
+      min-height: 40px;
+      border-color: var(--forest-dark);
+      background: var(--forest-dark);
+      color: #fff;
+      padding: 0 14px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .icon-button:hover, .control-button:hover { background: #edf2eb; border-color: #aab9ad; }
+    .primary-button:hover { background: #28513d; }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid #e5bb62;
+      outline-offset: 2px;
+    }
+    .statusbar {
+      z-index: 400;
+      display: flex;
+      min-height: 37px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      background: #edf1e9;
+      padding: 0 22px;
+    }
+    .status-left, .status-right { gap: 15px; color: var(--muted); font: 10px var(--mono); }
+    .status-strong { color: var(--ink); font-weight: 600; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+    .workspace {
+      display: grid;
+      min-height: 0;
+      flex: 1;
+      grid-template-columns: minmax(0, 1fr) 356px;
+    }
+    .map-stage { position: relative; min-width: 0; min-height: 0; background: #dfe6dc; }
+    #map { width: 100%; height: 100%; min-height: 420px; background: #dfe6dc; }
+    .map-stamp {
+      position: absolute;
+      z-index: 400;
+      top: 16px;
+      left: 16px;
+      min-width: 220px;
+      border: 1px solid rgba(255,255,255,.85);
+      border-left: 3px solid var(--forest);
+      border-radius: 5px;
+      background: rgba(251,252,248,.94);
+      box-shadow: 0 3px 14px rgba(24,36,31,.1);
+      padding: 11px 13px;
+      pointer-events: none;
+    }
+    .map-stamp-kicker { color: var(--forest); font: 9px var(--mono); letter-spacing: .12em; }
+    .map-stamp-heading { justify-content: space-between; gap: 18px; margin-top: 5px; }
+    .map-stamp-title { font-size: 14px; font-weight: 700; }
+    .map-stamp-sub { margin-top: 3px; color: var(--muted); font: 10px var(--mono); }
+    .grid-size { color: #4f5d55; font: 10px var(--mono); white-space: nowrap; }
+    .map-tools {
+      position: absolute;
+      z-index: 400;
+      top: 84px;
+      right: 16px;
+      display: flex;
+      gap: 6px;
+    }
+    .map-tools .icon-button { border-color: rgba(255,255,255,.8); box-shadow: 0 2px 9px rgba(24,36,31,.12); }
+    .north-mark {
+      position: absolute;
+      z-index: 400;
+      top: 132px;
+      right: 22px;
+      display: grid;
+      width: 30px;
+      height: 38px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.8);
+      border-radius: 5px;
+      background: rgba(251,252,248,.91);
+      color: var(--forest-dark);
+      font: 10px var(--mono);
+      pointer-events: none;
+    }
+    .north-arrow { margin-top: -3px; font-size: 15px; }
+    .map-footer {
+      position: absolute;
+      z-index: 400;
+      right: 16px;
+      bottom: 16px;
+      left: 16px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+    .map-legend {
+      flex-wrap: wrap;
+      gap: 13px;
+      border: 1px solid rgba(255,255,255,.8);
+      border-radius: 5px;
+      background: rgba(251,252,248,.94);
+      box-shadow: 0 3px 14px rgba(24,36,31,.1);
+      padding: 9px 11px;
+    }
+    .legend-item { gap: 6px; color: #394740; font-size: 10px; white-space: nowrap; }
+    .legend-swatch { width: 10px; height: 10px; border: 1px solid rgba(24,36,31,.15); border-radius: 2px; }
+    .map-attribution {
+      border-radius: 3px;
+      background: rgba(251,252,248,.88);
+      color: #3e4b43;
+      font: 9px var(--mono);
+      padding: 5px 7px;
+    }
+    .map-attribution a { color: var(--forest-dark); }
+    .leaflet-control-attribution { display: none; }
+    .leaflet-control-zoom { border: 1px solid var(--line) !important; box-shadow: 0 2px 8px rgba(24,36,31,.12) !important; }
+    .leaflet-control-zoom a { color: var(--ink) !important; }
+    .leaflet-tooltip.grid-tooltip {
+      border: 0;
+      border-radius: 4px;
+      background: #1a2d24;
+      box-shadow: none;
+      color: #f7f9f4;
+      font: 10px var(--mono);
+      padding: 5px 7px;
+    }
+    .leaflet-tooltip.grid-tooltip::before { display: none; }
+    .sidebar {
+      z-index: 450;
+      min-height: 0;
+      overflow: auto;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      scrollbar-color: #bdc9bd transparent;
+      scrollbar-width: thin;
+    }
+    .sidebar-header { padding: 17px 18px 13px; }
+    .eyebrow { color: var(--forest); font: 9px var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+    .sidebar-title { margin: 5px 0 0; font-size: 18px; letter-spacing: -.02em; }
+    .sidebar-copy { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .section { border-top: 1px solid var(--line); padding: 15px 18px; }
+    .section-heading { justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .section-title { margin: 0; font-size: 12px; font-weight: 700; }
+    .section-kicker { color: var(--muted); font: 9px var(--mono); }
+    .mini-tag { border-color: #d8e3d7; background: #eff5ed; color: var(--forest); font-size: 9px; padding: 4px 7px; }
+    .clock-readout { color: var(--ink); font: 12px var(--mono); }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+    .metric-box { min-width: 0; border: 1px solid var(--line); border-radius: 5px; background: #f6f8f3; padding: 9px 8px; }
+    .metric-label { color: var(--muted); font: 8px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+    .metric-value { display: block; margin-top: 5px; color: var(--ink); font: 17px var(--mono); }
+    .metric-unit { color: var(--muted); font: 9px var(--sans); }
+    .control-row { justify-content: space-between; gap: 10px; margin: 12px 0 8px; }
+    .field-label { color: #445148; font-size: 10px; font-weight: 600; }
+    .select-input {
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 11px;
+      padding: 0 8px;
+    }
+    .timeline-row { display: grid; grid-template-columns: 32px 1fr 34px; align-items: center; gap: 8px; margin-top: 13px; }
+    .timeline-end { color: var(--muted); font: 9px var(--mono); }
+    input[type="range"] { width: 100%; accent-color: var(--signal); cursor: pointer; }
+    .range-caption { display: flex; justify-content: space-between; margin-top: 3px; color: #879189; font: 8px var(--mono); }
+    .button-row { gap: 6px; margin-top: 13px; }
+    .button-row .primary-button { flex: 1; }
+    .button-row .control-button { min-width: 38px; }
+    .sim-note { margin: 11px 0 0; color: #8a5e25; font-size: 10px; line-height: 1.45; }
+    .risk-result { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; border-left: 3px solid var(--forest); background: #f1f5ee; padding: 11px 12px; }
+    .risk-result[data-level="MODERATE"] { border-left-color: var(--amber); background: #fbf6e9; }
+    .risk-result[data-level="HIGH"], .risk-result[data-level="EXTREME"] { border-left-color: var(--signal); background: #fbf0e9; }
+    .risk-value { color: var(--ink); font: 27px var(--mono); line-height: 1; }
+    .risk-sub { margin-top: 5px; color: var(--muted); font: 9px var(--mono); }
+    .risk-badge { border-radius: 4px; background: #dfece0; color: var(--forest-dark); font: 10px var(--mono); padding: 6px 7px; }
+    .api-state { justify-content: center; margin-top: 9px; border: 0; border-radius: 4px; background: #edf1e9; color: var(--muted); font-size: 9px; padding: 5px 7px; }
+    .api-state[data-state="ready"] { background: #e8f1e8; color: var(--forest); }
+    .api-state[data-state="error"] { background: #fbefea; color: #9d482a; }
+    .inputs-details { margin-top: 11px; }
+    .inputs-details summary { color: var(--forest-dark); cursor: pointer; font-size: 10px; font-weight: 700; }
+    .condition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .condition-field label { display: block; margin-bottom: 4px; color: var(--muted); font: 8px var(--mono); }
+    .condition-field input {
+      width: 100%;
+      min-height: 31px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--ink);
+      font: 11px var(--mono);
+      padding: 5px 7px;
+    }
+    .model-warning { margin: 9px 0 0; color: #8a5e25; font-size: 9px; line-height: 1.5; }
+    .cell-empty { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .cell-heading { justify-content: space-between; }
+    .cell-id { font: 13px var(--mono); font-weight: 600; }
+    .cell-state { color: var(--forest); font: 9px var(--mono); text-transform: uppercase; }
+    .cell-coordinates { margin-top: 5px; color: var(--muted); font: 9px var(--mono); }
+    .disclaimer { margin: 0 18px 17px; border: 1px solid #ead7ad; border-radius: 5px; background: #fff9ea; padding: 10px; }
+    .disclaimer-heading { display: flex; align-items: center; gap: 6px; color: #795b18; font-size: 10px; font-weight: 700; }
+    .disclaimer p { margin: 5px 0 0; color: #75684d; font-size: 9px; line-height: 1.5; }
+    .leaflet-container { font-family: var(--sans); }
+
+    @media (max-width: 980px) {
+      body { height: auto; min-height: 100vh; overflow: auto; }
+      .workspace { grid-template-columns: minmax(0, 1fr) 320px; }
+      .map-stage, #map { min-height: 570px; }
+      .sidebar { max-height: calc(100vh - 101px); }
+    }
+    @media (max-width: 720px) {
+      .topbar { height: 58px; flex-basis: 58px; padding: 0 13px; }
+      .statusbar { align-items: flex-start; flex-direction: column; gap: 5px; padding: 8px 13px; }
+      .status-right { display: none; }
+      .workspace { display: flex; flex-direction: column; }
+      .map-stage, #map { height: 56vh; min-height: 390px; }
+      .sidebar { max-height: none; overflow: visible; border-top: 1px solid var(--line); border-left: 0; }
+      .map-stamp { top: 10px; left: 10px; min-width: 190px; padding: 9px 10px; }
+      .map-tools { top: 78px; right: 10px; }
+      .north-mark { top: 126px; right: 16px; }
+      .map-footer { right: 9px; bottom: 10px; left: 9px; align-items: flex-start; flex-direction: column; }
+      .map-legend { gap: 9px; padding: 7px 8px; }
+      .legend-item { font-size: 9px; }
+      .map-attribution { align-self: flex-end; }
+    }
+    @media (max-width: 400px) {
+      .brand-caption { font-size: 8px; }
+      .demo-tag { font-size: 8px; }
+      .top-actions { gap: 7px; }
+      .status-left { flex-wrap: wrap; gap: 7px 10px; font-size: 9px; }
+      .map-stamp { min-width: 170px; }
+      .grid-size { font-size: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true"><i data-lucide="flame" width="19" height="19"></i></div>
+        <div>
+          <div class="brand-name">FIRELINE</div>
+          <div class="brand-caption">Risk &amp; spread observatory</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="demo-tag"><span class="status-dot"></span> Synthetic demo</span>
+        <button class="icon-button" id="resetMap" title="Reset map extent" aria-label="Reset map extent">
+          <i data-lucide="locate-fixed" width="16" height="16"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="statusbar">
+      <div class="status-left">
+        <span class="status-strong">SCENARIO 04</span>
+        <span>HIMACHAL PRADESH · DEMO GRID</span>
+        <span>12-HOUR WINDOW</span>
+      </div>
+      <div class="status-right">
+        <span>ML: <span class="status-strong">LOCAL SAVED MODEL</span></span>
+        <span>SPREAD: <span class="status-strong">TOY CELLULAR AUTOMATON</span></span>
+      </div>
+    </div>
+
+    <main class="workspace">
+      <section class="map-stage" aria-label="Interactive simulated fire grid map">
+        <div id="map"></div>
+        <div class="map-stamp">
+          <div class="map-stamp-kicker">SYNTHETIC TEST AREA · NOT A REAL INCIDENT</div>
+          <div class="map-stamp-heading">
+            <div>
+              <div class="map-stamp-title">Shimla demonstration grid</div>
+              <div class="map-stamp-sub">31.1048° N, 77.1734° E</div>
+            </div>
+            <span class="grid-size">12 × 12<br>500 m cells</span>
+          </div>
+        </div>
+        <div class="map-tools">
+          <button class="icon-button" id="fitGrid" title="Fit grid to map" aria-label="Fit grid to map">
+            <i data-lucide="scan" width="15" height="15"></i>
+          </button>
+        </div>
+        <div class="north-mark" aria-label="North"><span>N</span><span class="north-arrow">↑</span></div>
+        <div class="map-footer">
+          <div class="map-legend" aria-label="Map legend">
+            <span class="legend-item"><span class="legend-swatch" style="background:#b8cbb6"></span>Unburned</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#ef6b3b"></span>Burning</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#3d4542"></span>Burned</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#e3bb60"></span>Ignition</span>
+          </div>
+          <div class="map-attribution">Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></div>
+        </div>
+      </section>
+
+      <aside class="sidebar" aria-label="Scenario and model controls">
+        <div class="sidebar-header">
+          <div class="eyebrow">Live scenario monitor</div>
+          <h1 class="sidebar-title">Fire progression</h1>
+          <p class="sidebar-copy">A mock ignition moves across a directional grid. Step the scenario or let it play through 12 hours.</p>
+        </div>
+
+        <section class="section" aria-labelledby="simHeading">
+          <div class="section-heading">
+            <div>
+              <h2 class="section-title" id="simHeading">Grid simulation</h2>
+              <span class="section-kicker">500 m CELL RESOLUTION</span>
+            </div>
+            <span class="mini-tag" id="runState">PAUSED</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-box"><span class="metric-label">Elapsed</span><strong class="metric-value" id="elapsedValue">00<span class="metric-unit"> h</span></strong></div>
+            <div class="metric-box"><span class="metric-label">Active cells</span><strong class="metric-value" id="activeValue">01</strong></div>
+            <div class="metric-box"><span class="metric-label">Grid touched</span><strong class="metric-value" id="areaValue">0.25<span class="metric-unit"> km²</span></strong></div>
+          </div>
+          <div class="control-row">
+            <label class="field-label" for="windDirection">Demo wind direction</label>
+            <select class="select-input" id="windDirection" aria-label="Demo wind direction">
+              <option value="SE" selected>NW → SE</option>
+              <option value="E">W → E</option>
+              <option value="S">N → S</option>
+              <option value="SW">NE → SW</option>
+              <option value="W">E → W</option>
+              <option value="N">S → N</option>
+            </select>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-end">00h</span>
+            <input id="timeline" type="range" min="0" max="12" step="1" value="0" aria-label="Simulation hour">
+            <span class="timeline-end">12h</span>
+          </div>
+          <div class="range-caption"><span>IGNITION</span><span id="timelineReadout">HOUR 00 / 12</span><span>12 HOUR</span></div>
+          <div class="button-row">
+            <button class="primary-button" id="playButton" aria-label="Play simulation">
+              <i data-lucide="play" width="15" height="15"></i><span>Play simulation</span>
+            </button>
+            <button class="control-button" id="stepButton" title="Advance one hour" aria-label="Advance one hour">
+              <i data-lucide="skip-forward" width="15" height="15"></i>
+            </button>
+            <button class="control-button" id="resetSimulation" title="Reset simulation" aria-label="Reset simulation">
+              <i data-lucide="rotate-ccw" width="15" height="15"></i>
+            </button>
+          </div>
+          <p class="sim-note">Toy spread rule: neighboring cells ignite with a directional wind bias. No terrain, fuel data, or fire physics are used.</p>
+        </section>
+
+        <section class="section" aria-labelledby="riskHeading">
+          <div class="section-heading">
+            <div>
+              <h2 class="section-title" id="riskHeading">Model risk estimate</h2>
+              <span class="section-kicker">REAL MODEL · ONE SCENARIO INPUT</span>
+            </div>
+            <span class="mini-tag">10 FEATURES</span>
+          </div>
+          <div class="risk-result" id="riskResult" data-level="LOW">
+            <div>
+              <div class="risk-value" id="probabilityValue">--%</div>
+              <div class="risk-sub" id="predictionLabel">Waiting for model</div>
+            </div>
+            <span class="risk-badge" id="riskBadge">NO RESULT</span>
+          </div>
+          <div class="api-state" id="apiState" data-state="loading" role="status">Connecting to local model...</div>
+          <details class="inputs-details" open>
+            <summary>Scenario environmental inputs</summary>
+            <form id="riskForm">
+              <div class="condition-grid">
+                <div class="condition-field"><label for="temperature">TEMPERATURE · °C</label><input id="temperature" name="temperature" type="number" min="-20" max="60" step="0.1" value="34" required></div>
+                <div class="condition-field"><label for="humidity">RELATIVE HUMIDITY · %</label><input id="humidity" name="humidity" type="number" min="0" max="100" step="0.1" value="31" required></div>
+                <div class="condition-field"><label for="windSpeed">WIND SPEED · km/h</label><input id="windSpeed" name="wind_speed" type="number" min="0" max="200" step="0.1" value="18" required></div>
+                <div class="condition-field"><label for="rainfall">RAINFALL · mm</label><input id="rainfall" name="rainfall" type="number" min="0" max="500" step="0.1" value="0" required></div>
+                <div class="condition-field"><label for="ffmc">FFMC</label><input id="ffmc" name="ffmc" type="number" min="0" max="101" step="0.1" value="80" required></div>
+                <div class="condition-field"><label for="dmc">DMC</label><input id="dmc" name="dmc" type="number" min="0" max="1000" step="0.1" value="20" required></div>
+                <div class="condition-field"><label for="dc">DC</label><input id="dc" name="dc" type="number" min="0" max="2000" step="0.1" value="100" required></div>
+                <div class="condition-field"><label for="isi">ISI</label><input id="isi" name="isi" type="number" min="0" max="100" step="0.1" value="5" required></div>
+                <div class="condition-field"><label for="bui">BUI</label><input id="bui" name="bui" type="number" min="0" max="1000" step="0.1" value="25" required></div>
+                <div class="condition-field"><label for="fwi">FWI</label><input id="fwi" name="fwi" type="number" min="0" max="100" step="0.1" value="6" required></div>
+              </div>
+              <div class="button-row">
+                <button class="primary-button" type="submit"><i data-lucide="activity" width="15" height="15"></i><span>Run model estimate</span></button>
+              </div>
+            </form>
+          </details>
+          <p class="model-warning">This saved model learned from 2012 Algerian observations. These sample inputs and the Shimla map are for interface demonstration only; the result is not geographically validated.</p>
+        </section>
+
+        <section class="section" aria-labelledby="cellHeading">
+          <div class="section-heading">
+            <div>
+              <h2 class="section-title" id="cellHeading">Selected grid cell</h2>
+              <span class="section-kicker">SELECT A CELL ON THE MAP</span>
+            </div>
+          </div>
+          <div class="cell-empty" id="cellDetail">No cell selected. Click any grid square to inspect its simulated state and approximate center.</div>
+        </section>
+
+        <div class="disclaimer">
+          <div class="disclaimer-heading"><i data-lucide="triangle-alert" width="14" height="14"></i> Demonstration only</div>
+          <p>The grid animation is synthetic, not an operational spread forecast. The map area is illustrative and contains no observed fire, terrain, or satellite data.</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
+  <script>
+    "use strict";
+
+    const center = [31.1048, 77.1734];
+    const rows = 12;
+    const columns = 12;
+    const cellSizeMeters = 500;
+    const hoursTotal = 12;
+    const latitudeStep = cellSizeMeters / 111320;
+    const longitudeStep = cellSizeMeters / (111320 * Math.cos(center[0] * Math.PI / 180));
+    const map = L.map("map", { zoomControl: false, preferCanvas: true }).setView(center, 13);
+    L.control.zoom({ position: "topright" }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    const gridLayer = L.layerGroup().addTo(map);
+    const cellLayers = new Map();
+    let grid = [];
+    let history = [];
+    let currentHour = 0;
+    let timer = null;
+    let selectedCell = null;
+    const timeline = document.getElementById("timeline");
+
+    function stableNoise(row, column, hour) {
+      const value = Math.sin((row + 1) * 127.1 + (column + 1) * 311.7 + (hour + 1) * 74.7) * 43758.5453;
+      return value - Math.floor(value);
+    }
+
+    function cellId(row, column) {
+      return `R${String(row + 1).padStart(2, "0")} · C${String(column + 1).padStart(2, "0")}`;
+    }
+
+    function makeInitialGrid() {
+      grid = Array.from({ length: rows }, (_, row) =>
+        Array.from({ length: columns }, (_, column) => ({
+          row,
+          column,
+          state: "unburned",
+          startedAt: null,
+          fuel: 0.48 + stableNoise(row, column, 0) * 0.48
+        }))
+      );
+      grid[4][4].state = "burning";
+      grid[4][4].startedAt = 0;
+      currentHour = 0;
+      history = [copyGrid(grid)];
+      selectedCell = null;
+      renderGrid();
+      renderMetrics();
+      renderSelectedCell();
+      timeline.value = "0";
+      updateTimeline();
+    }
+
+    function copyGrid(source) {
+      return source.map(row => row.map(cell => ({ ...cell })));
+    }
+
+    function gridBounds(row, column) {
+      const north = center[0] + (rows / 2 - row) * latitudeStep;
+      const west = center[1] + (column - columns / 2) * longitudeStep;
+      return [[north - latitudeStep, west], [north, west + longitudeStep]];
+    }
+
+    function createGridLayers() {
+      gridLayer.clearLayers();
+      cellLayers.clear();
+      grid.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => {
+        const bounds = gridBounds(rowIndex, columnIndex);
+        const rectangle = L.rectangle(bounds, {
+          color: "#526858",
+          weight: 1,
+          opacity: 0.65,
+          fillColor: "#b8cbb6",
+          fillOpacity: 0.27
+        });
+        rectangle.bindTooltip(`${cellId(rowIndex, columnIndex)} · UNBURNED`, {
+          className: "grid-tooltip",
+          direction: "top",
+          sticky: true
+        });
+        rectangle.on("click", () => {
+          selectedCell = { row: rowIndex, column: columnIndex };
+          renderGrid();
+          renderSelectedCell();
+        });
+        rectangle.addTo(gridLayer);
+        cellLayers.set(`${rowIndex},${columnIndex}`, rectangle);
+      }));
+      const top = gridBounds(0, 0)[1][0];
+      const bottom = gridBounds(rows - 1, columns - 1)[0][0];
+      const left = gridBounds(0, 0)[0][1];
+      const right = gridBounds(rows - 1, columns - 1)[1][1];
+      map.fitBounds([[bottom, left], [top, right]], { padding: [36, 36], maxZoom: 14 });
+      const [[south, west], [north, east]] = gridBounds(4, 4);
+      L.circleMarker([(south + north) / 2, (west + east) / 2], {
+        radius: 7,
+        color: "#fff8df",
+        weight: 2,
+        fillColor: "#e3a92d",
+        fillOpacity: 1
+      }).bindTooltip("Synthetic ignition point", { className: "grid-tooltip" }).addTo(map);
+      renderGrid();
+    }
+
+    function colorForState(state) {
+      if (state === "burning") return { fillColor: "#ef6b3b", fillOpacity: 0.9, color: "#a23d21", weight: 1.5 };
+      if (state === "burned") return { fillColor: "#3d4542", fillOpacity: 0.8, color: "#29322e", weight: 1 };
+      return { fillColor: "#b8cbb6", fillOpacity: 0.27, color: "#526858", weight: 1, opacity: 0.65 };
+    }
+
+    function renderGrid() {
+      grid.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => {
+        const layer = cellLayers.get(`${rowIndex},${columnIndex}`);
+        if (!layer) return;
+        const isIgnition = rowIndex === 4 && columnIndex === 4;
+        const style = colorForState(cell.state);
+        if (isIgnition && currentHour === 0) {
+          style.color = "#d7a127";
+          style.weight = 2.5;
+        }
+        if (selectedCell && selectedCell.row === rowIndex && selectedCell.column === columnIndex) {
+          style.color = "#172c22";
+          style.weight = 3;
+          style.fillOpacity = Math.max(style.fillOpacity, 0.5);
+        }
+        layer.setStyle(style);
+        layer.setTooltipContent(`${cellId(rowIndex, columnIndex)} · ${cell.state.toUpperCase()}${isIgnition ? " · IGNITION" : ""}`);
+      }));
+      renderMetrics();
+    }
+
+    function renderMetrics() {
+      const cells = grid.flat();
+      const active = cells.filter(cell => cell.state === "burning").length;
+      const touched = cells.filter(cell => cell.state !== "unburned").length;
+      document.getElementById("elapsedValue").innerHTML = `${String(currentHour).padStart(2, "0")}<span class="metric-unit"> h</span>`;
+      document.getElementById("activeValue").textContent = String(active).padStart(2, "0");
+      document.getElementById("areaValue").innerHTML = `${(touched * 0.25).toFixed(2)}<span class="metric-unit"> km²</span>`;
+      document.getElementById("runState").textContent = timer ? "RUNNING" : "PAUSED";
+      document.getElementById("timelineReadout").textContent = `HOUR ${String(currentHour).padStart(2, "0")} / 12`;
+    }
+
+    function renderSelectedCell() {
+      const target = document.getElementById("cellDetail");
+      if (!selectedCell) {
+        target.className = "cell-empty";
+        target.textContent = "No cell selected. Click any grid square to inspect its simulated state and approximate center.";
+        return;
+      }
+      const { row, column } = selectedCell;
+      const cell = grid[row][column];
+      const [[south, west], [north, east]] = gridBounds(row, column);
+      const latitude = ((south + north) / 2).toFixed(4);
+      const longitude = ((west + east) / 2).toFixed(4);
+      target.className = "cell-detail";
+      target.innerHTML = `<div class="cell-heading"><span class="cell-id">${cellId(row, column)}</span><span class="cell-state">${cell.state}</span></div><div class="cell-coordinates">${latitude}° N · ${longitude}° E<br>500 × 500 m · demo coordinate only</div>`;
+    }
+
+    const windVectors = {
+      SE: [1, 1], E: [0, 1], S: [1, 0], SW: [1, -1], W: [0, -1], N: [-1, 0]
+    };
+
+    function advanceOneHour() {
+      if (currentHour >= hoursTotal) {
+        pauseSimulation();
+        return;
+      }
+      const next = copyGrid(grid);
+      const [windRow, windColumn] = windVectors[document.getElementById("windDirection").value];
+      const windLength = Math.hypot(windRow, windColumn) || 1;
+      const wind = [windRow / windLength, windColumn / windLength];
+      const windSpeed = Number(document.getElementById("windSpeed").value);
+      const speedFactor = Math.min(windSpeed / 80, 1);
+      const newFires = new Set();
+      let hadActiveFire = false;
+
+      grid.flat().forEach(cell => {
+        if (cell.state !== "burning") return;
+        hadActiveFire = true;
+        next[cell.row][cell.column].state = "burned";
+        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+          for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+            if (rowOffset === 0 && columnOffset === 0) continue;
+            const nextRow = cell.row + rowOffset;
+            const nextColumn = cell.column + columnOffset;
+            if (nextRow < 0 || nextRow >= rows || nextColumn < 0 || nextColumn >= columns) continue;
+            if (grid[nextRow][nextColumn].state !== "unburned") continue;
+            const directionLength = Math.hypot(rowOffset, columnOffset);
+            const alignment = (rowOffset * wind[0] + columnOffset * wind[1]) / directionLength;
+            const fuel = grid[nextRow][nextColumn].fuel;
+            const chance = 0.24 + Math.max(0, alignment) * 0.43 + fuel * 0.12 + speedFactor * 0.1;
+            if (stableNoise(nextRow, nextColumn, currentHour + 1) < chance) {
+              newFires.add(`${nextRow},${nextColumn}`);
+            }
+          }
+        }
+      });
+
+      // Keep the illustrative front moving even when a seeded chance selects no neighbor.
+      if (hadActiveFire && newFires.size === 0) {
+        const source = grid.flat().find(cell => cell.state === "burning");
+        const fallbackRow = Math.max(0, Math.min(rows - 1, source.row + Math.sign(windRow)));
+        const fallbackColumn = Math.max(0, Math.min(columns - 1, source.column + Math.sign(windColumn)));
+        if (grid[fallbackRow][fallbackColumn].state === "unburned") newFires.add(`${fallbackRow},${fallbackColumn}`);
+      }
+      newFires.forEach(key => {
+        const [row, column] = key.split(",").map(Number);
+        next[row][column].state = "burning";
+        next[row][column].startedAt = currentHour + 1;
+      });
+      grid = next;
+      currentHour += 1;
+      history[currentHour] = copyGrid(grid);
+      timeline.value = String(currentHour);
+      renderGrid();
+      updateTimeline();
+      renderSelectedCell();
+      if (currentHour >= hoursTotal) pauseSimulation();
+    }
+
+    function updateTimeline() {
+      timeline.value = String(currentHour);
+      timeline.setAttribute("aria-valuetext", `Hour ${currentHour} of ${hoursTotal}`);
+      document.getElementById("timelineReadout").textContent = `HOUR ${String(currentHour).padStart(2, "0")} / 12`;
+    }
+
+    function pauseSimulation() {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+      const button = document.getElementById("playButton");
+      button.innerHTML = '<i data-lucide="play" width="15" height="15"></i><span>Play simulation</span>';
+      button.setAttribute("aria-label", "Play simulation");
+      if (window.lucide) window.lucide.createIcons();
+      renderMetrics();
+    }
+
+    function toggleSimulation() {
+      if (timer) {
+        pauseSimulation();
+        return;
+      }
+      if (currentHour >= hoursTotal) makeInitialGrid();
+      const button = document.getElementById("playButton");
+      button.innerHTML = '<i data-lucide="pause" width="15" height="15"></i><span>Pause simulation</span>';
+      button.setAttribute("aria-label", "Pause simulation");
+      if (window.lucide) window.lucide.createIcons();
+      timer = window.setInterval(advanceOneHour, 900);
+      renderMetrics();
+    }
+
+    function seekToHour(hour) {
+      pauseSimulation();
+      makeInitialGrid();
+      for (let step = 0; step < Number(hour); step += 1) advanceOneHour();
+    }
+
+    async function runModelEstimate(event) {
+      if (event) event.preventDefault();
+      const form = document.getElementById("riskForm");
+      if (!form.reportValidity()) return;
+      const data = new FormData(form);
+      const request = {
+        temperature: Number(data.get("temperature")),
+        humidity: Number(data.get("humidity")),
+        wind_speed: Number(data.get("wind_speed")),
+        rainfall: Number(data.get("rainfall")),
+        ffmc: Number(data.get("ffmc")),
+        dmc: Number(data.get("dmc")),
+        dc: Number(data.get("dc")),
+        isi: Number(data.get("isi")),
+        bui: Number(data.get("bui")),
+        fwi: Number(data.get("fwi"))
+      };
+      const status = document.getElementById("apiState");
+      status.dataset.state = "loading";
+      status.textContent = "Requesting local model...";
+      try {
+        const response = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || `Request failed (${response.status})`);
+        document.getElementById("probabilityValue").textContent = `${(result.fire_probability * 100).toFixed(0)}%`;
+        document.getElementById("predictionLabel").textContent = `Model class: ${result.prediction}`;
+        document.getElementById("riskBadge").textContent = result.risk_level;
+        document.getElementById("riskResult").dataset.level = result.risk_level;
+        status.dataset.state = "ready";
+        status.textContent = "Saved Random Forest responded";
+      } catch (error) {
+        status.dataset.state = "error";
+        status.textContent = `Model unavailable: ${error.message}`;
+      }
+    }
+
+    document.getElementById("playButton").addEventListener("click", toggleSimulation);
+    document.getElementById("stepButton").addEventListener("click", () => {
+      pauseSimulation();
+      advanceOneHour();
+    });
+    document.getElementById("resetSimulation").addEventListener("click", () => {
+      pauseSimulation();
+      makeInitialGrid();
+    });
+    document.getElementById("resetMap").addEventListener("click", () => map.setView(center, 13));
+    document.getElementById("fitGrid").addEventListener("click", () => {
+      const bounds = gridLayer.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    });
+    timeline.addEventListener("input", event => seekToHour(event.target.value));
+    document.getElementById("riskForm").addEventListener("submit", runModelEstimate);
+    document.getElementById("windDirection").addEventListener("change", () => {
+      if (currentHour > 0) seekToHour(currentHour);
+    });
+
+    makeInitialGrid();
+    createGridLayers();
+    if (window.lucide) window.lucide.createIcons();
+    window.setTimeout(() => map.invalidateSize(), 120);
+    runModelEstimate();
+  </script>
+</body>
+</html>
