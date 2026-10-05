@@ -1,21 +1,20 @@
-"""Train and evaluate the raw-weather Random Forest baseline."""
+"""Train and evaluate the ten-feature Random Forest baseline."""
 
 import joblib
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
 from sklearn.model_selection import train_test_split
 
-from src.data_loader import BASELINE_FEATURES, PROJECT_ROOT, load_data
+from src.data_loader import (
+    BASELINE_FEATURES,
+    PROJECT_ROOT,
+    TARGET_MAPPING,
+    load_data,
+)
+from src.evaluate import evaluate_model
 
 
 RANDOM_STATE = 42
@@ -24,13 +23,12 @@ MODEL_PATH = PROJECT_ROOT / "models" / "random_forest_baseline.joblib"
 FEATURE_IMPORTANCE_PATH = PROJECT_ROOT / "reports" / "baseline_feature_importance.png"
 
 
-def train_baseline():
-    """Fit the baseline and return it with holdout data and predictions."""
-    data = load_data()
+def make_train_test_split(data=None):
+    """Create the fixed, stratified holdout split used by all baselines."""
+    data = load_data() if data is None else data
     features = data.loc[:, BASELINE_FEATURES]
-    target = data["Classes"].map({"not fire": 0, "fire": 1})
-
-    X_train, X_test, y_train, y_test = train_test_split(
+    target = data["Classes"].map(TARGET_MAPPING).astype(int)
+    return train_test_split(
         features,
         target,
         test_size=TEST_SIZE,
@@ -38,25 +36,24 @@ def train_baseline():
         stratify=target,
     )
 
-    model = RandomForestClassifier(n_estimators=100, random_state=RANDOM_STATE)
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
 
-    metrics = {
-        "accuracy": accuracy_score(y_test, predictions),
-        "precision": precision_score(y_test, predictions, zero_division=0),
-        "recall": recall_score(y_test, predictions, zero_division=0),
-        "f1": f1_score(y_test, predictions, zero_division=0),
-        "confusion_matrix": confusion_matrix(y_test, predictions, labels=[0, 1]),
-        "classification_report": classification_report(
-            y_test,
-            predictions,
-            labels=[0, 1],
-            target_names=["not fire", "fire"],
-            zero_division=0,
-        ),
-    }
-    return model, (X_test, y_test, predictions), metrics
+def create_random_forest() -> RandomForestClassifier:
+    """Create the primary, reproducible Random Forest baseline."""
+    return RandomForestClassifier(
+        n_estimators=300,
+        random_state=RANDOM_STATE,
+        class_weight="balanced",
+    )
+
+
+def train_baseline():
+    """Fit the baseline and return it with holdout data and predictions."""
+    data = load_data()
+    X_train, X_test, y_train, y_test = make_train_test_split(data)
+    model = create_random_forest()
+    model.fit(X_train, y_train)
+    metrics = evaluate_model(model, X_test, y_test)
+    return model, (X_test, y_test, metrics["predictions"]), metrics
 
 
 def plot_feature_importance(model) -> list[tuple[str, float]]:
@@ -80,22 +77,42 @@ def plot_feature_importance(model) -> list[tuple[str, float]]:
     return ranked_importances
 
 
+def build_model_artifact(model) -> dict[str, object]:
+    """Bundle the estimator with the preprocessing metadata inference needs."""
+    return {
+        "model": model,
+        "feature_columns": list(BASELINE_FEATURES),
+        "target_mapping": TARGET_MAPPING,
+        "missing_feature_strategy": "drop rows missing any baseline feature or target",
+    }
+
+
 def main() -> None:
     model, (X_test, y_test, predictions), metrics = train_baseline()
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
-    print(f"Training rows: {len(load_data()) - len(X_test)}")
+    joblib.dump(build_model_artifact(model), MODEL_PATH)
+    data = load_data()
+    print(f"Clean observations: {len(data)}")
+    print(f"Class distribution: {data['Classes'].value_counts().to_dict()}")
+    print(f"Features: {', '.join(BASELINE_FEATURES)}")
+    print(f"Training rows: {len(data) - len(X_test)}")
     print(f"Test rows: {len(X_test)}")
     print(f"Accuracy: {metrics['accuracy']:.3f}")
     print(f"Precision (fire): {metrics['precision']:.3f}")
     print(f"Recall (fire): {metrics['recall']:.3f}")
     print(f"F1 score (fire): {metrics['f1']:.3f}")
+    print(f"ROC-AUC: {metrics['roc_auc']:.3f}")
     print("\nConfusion matrix (actual rows, predicted columns; not fire, fire):")
     print(metrics["confusion_matrix"])
-    print("\nClassification report:")
-    print(metrics["classification_report"])
+    probability_preview = X_test.loc[:, []].copy()
+    probability_preview["actual"] = y_test.map({0: "not fire", 1: "fire"})
+    probability_preview["predicted"] = ["fire" if value else "not fire" for value in predictions]
+    probability_preview["fire_probability"] = metrics["fire_probabilities"]
+    print("\nFirst ten test-set probability predictions:")
+    print(probability_preview.head(10).to_string(index=False))
     print(f"\nSaved model: {MODEL_PATH}")
     print("\nFeature importance (model-specific, not causal):")
+    print("Correlated fire-weather indices can share or redistribute importance.")
     for feature, importance in plot_feature_importance(model):
         print(f"{feature}: {importance:.3f}")
     print(f"Saved feature-importance plot: {FEATURE_IMPORTANCE_PATH}")

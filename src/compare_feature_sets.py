@@ -1,48 +1,24 @@
 """Compare raw weather with an exploratory fire-weather-index feature set."""
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
-from sklearn.model_selection import train_test_split
-
-from src.data_loader import BASELINE_FEATURES, FIRE_INDEX_FEATURES, load_data
-from src.train import RANDOM_STATE, TEST_SIZE
+from src.data_loader import BASELINE_FEATURES, WEATHER_FEATURES, load_data
+from src.evaluate import evaluate_model
+from src.train import create_random_forest, make_train_test_split
 
 
 def compare_feature_sets() -> dict[str, dict[str, object]]:
     """Compare both feature sets on identical observations and holdout rows."""
-    all_features = (*BASELINE_FEATURES, *FIRE_INDEX_FEATURES)
-    data = load_data(feature_columns=all_features)
-    target = data["Classes"].map({"not fire": 0, "fire": 1})
-    train_indices, test_indices = train_test_split(
-        data.index,
-        test_size=TEST_SIZE,
-        random_state=RANDOM_STATE,
-        stratify=target,
-    )
+    data = load_data()
+    X_train, X_test, y_train, y_test = make_train_test_split(data)
 
     feature_sets = {
-        "Raw weather baseline": BASELINE_FEATURES,
-        "Exploratory weather + fire indices": all_features,
+        "Weather-only experiment": WEATHER_FEATURES,
+        "Weather + fire-weather indices": BASELINE_FEATURES,
     }
     results = {"observations": len(data)}
     for name, features in feature_sets.items():
-        model = RandomForestClassifier(n_estimators=100, random_state=RANDOM_STATE)
-        model.fit(data.loc[train_indices, features], target.loc[train_indices])
-        predictions = model.predict(data.loc[test_indices, features])
-        actual = target.loc[test_indices]
-        results[name] = {
-            "accuracy": accuracy_score(actual, predictions),
-            "precision": precision_score(actual, predictions, zero_division=0),
-            "recall": recall_score(actual, predictions, zero_division=0),
-            "f1": f1_score(actual, predictions, zero_division=0),
-            "confusion_matrix": confusion_matrix(actual, predictions, labels=[0, 1]),
-        }
+        model = create_random_forest()
+        model.fit(X_train.loc[:, features], y_train)
+        results[name] = evaluate_model(model, X_test.loc[:, features], y_test)
     return results
 
 
@@ -53,7 +29,7 @@ def main() -> None:
         if not isinstance(metrics, dict):
             continue
         print(f"\n{name}")
-        for metric in ("accuracy", "precision", "recall", "f1"):
+        for metric in ("accuracy", "precision", "recall", "f1", "roc_auc"):
             print(f"  {metric}: {metrics[metric]:.3f}")
         print("  confusion matrix (actual rows, predicted columns):")
         print(metrics["confusion_matrix"])

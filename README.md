@@ -1,267 +1,512 @@
-🔥 Forest Fire Predictor
-An AI/ML project that predicts forest fire risk from environmental conditions and eventually produces geographic and time-based risk forecasts.
-Project status: Early ML prototype
+🔥 Predictive Forest Fire Risk & Spread Simulation System
+An AI-powered prototype for 24-hour forest fire risk prediction, 12-hour fire-spread simulation, and an interactive GIS disaster-management dashboard.
+This project follows the provided ISRO-inspired technical blueprint and is being developed incrementally: first a working ML risk model, then spatial prediction, fire-spread simulation, GIS visualization, backend APIs, and finally advanced satellite/physics-informed components.
+Current status: Stage 1 — historical environmental dataset + baseline ML model
+Long-term target: 24-hour spatial fire-risk prediction + 12-hour fire-spread simulation.
 
-🎯 Goal
-The long-term goal is:
-Weather + Vegetation + Terrain + Historical Fire Data
-                         ↓
-                    ML Model
-                         ↓
-                 Fire Probability
-                         ↓
-               Risk Classification
-                         ↓
-             Map / Dashboard / Alert
-The project is being built incrementally so that the architecture and ML workflow are understood rather than hidden behind generated code.
-Current version
-The first baseline uses the Algerian Forest Fires Dataset.
-Current input features:
-- Temperature
-- Relative Humidity (RH)
-- Wind Speed (Ws)
-- Rainfall (Rain)
-Target:
-fire
-not fire
+1. Project Vision
+Forest fires are difficult to manage because responders need to know both:
+1. Where a fire is likely to occur, and
+2. How an active fire may spread.
+The proposed system therefore has two main intelligence modules:
+                    FOREST FIRE SYSTEM
+                           │
+              ┌────────────┴────────────┐
+              ↓                         ↓
+       24-HOUR RISK MODEL         12-HOUR SPREAD MODEL
+              │                         │
+              ↓                         ↓
+   Where is fire likely?       How will an active fire spread?
+              │                         │
+              └────────────┬────────────┘
+                           ↓
+                    GIS DASHBOARD
+2. Main Objectives
+Module 1 — 24-Hour Fire Risk Prediction
+Predict the probability that a geographical grid cell will experience a fire within the next 24 hours.
+Output:
+- fire probability
+- fire/no-fire classification
+- risk level
+- spatial fire-risk map
+Module 2 — 12-Hour Fire Spread Simulation
+Given an active ignition point or current fire boundary, estimate:
+- direction of spread
+- spread velocity
+- fire intensity
+- burned area
+- predicted boundary
+- progression over 12 hours
+Module 3 — GIS Dashboard
+Provide an actionable interface showing:
+- risk layers
+- active fires
+- predicted fire boundaries
+- terrain
+- environmental layers
+- time-based fire progression
+- location-specific predictions
+3. Current MVP
+The first working prototype uses the Algerian Forest Fires Dataset to establish the ML pipeline.
 Current cleaned dataset:
 - 243 usable observations
 - 137 fire observations
 - 106 non-fire observations
-The initial model is a Random Forest Classifier.
-Why only four features initially?
-The dataset also contains:
+- 14 columns
+Stage-1 model features:
+- Temperature
+- RH
+- Ws
+- Rain
 - FFMC
 - DMC
 - DC
 - ISI
 - BUI
 - FWI
-These are fire-weather indices. They are useful, but they are intentionally excluded from the first baseline so we can measure how much predictive information comes from basic environmental conditions alone.
-🧠 What we are learning
-This project is also a practical way to learn:
-- Python
-- pandas
-- NumPy
-- data cleaning
-- exploratory data analysis
-- machine learning
-- model evaluation
-- probability prediction
-- feature engineering
-- APIs
-- backend development
-- GIS/geospatial data
-- deployment
-- Linux
-- Git/GitHub
-📁 Project structure
-forest-fire-predictor/
-│
-├── data/
-│   ├── Algerian_forest_fires_dataset_UPDATE.csv
-│   └── algerian+forest+fires+dataset.zip
-│
-├── models/
-│   └── random_forest_baseline.joblib  # created by training
-│
-├── src/
-│   ├── api.py
-│   ├── compare_feature_sets.py
-│   ├── compare_models.py
-│   ├── data_loader.py
-│   ├── explore.py
-│   ├── model.py
-│   ├── predict.py
-│   └── train.py
-│
-├── reports/                            # created by training
-├── tests/
-│   └── test_pipeline.py
-│
-├── README.md
-├── COPILOT.md
-├── SKILL.md
-└── requirements.txt
-🛠️ Setup
-1. Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
-2. Install the project dependencies
-pip install -r requirements.txt
-📊 Dataset
-The first dataset is the Algerian Forest Fires Dataset from the UCI Machine Learning Repository.
-It contains observations from two Algerian regions during 2012.
-The raw dataset contains formatting artifacts such as:
-- region title rows
-- repeated headers
-- whitespace in column names
-- whitespace in target labels
-- missing values
-These are cleaned programmatically without modifying the original CSV.
-🧹 Current data-cleaning pipeline
-The current preprocessing performs:
-1. Skip the first region title and strip column-name whitespace.
-2. Convert available numeric columns, coercing invalid values to missing.
-3. Trim and normalize target labels to lowercase.
-4. Keep only `fire` and `not fire` rows.
-5. Drop rows missing a requested feature or target.
-Conceptually:
-Raw CSV
-   ↓
-Remove formatting rows
-   ↓
-Clean column names
-   ↓
-Clean target labels
-   ↓
-Convert features to numbers
-   ↓
-Remove incomplete observations
-   ↓
-Clean DataFrame
-🤖 Baseline ML pipeline
-The first model follows:
-Clean dataset
-      ↓
-Select features
-      ↓
-X = environmental conditions
-y = fire / no fire
-      ↓
-Train/test split
-      ↓
-Random Forest
-      ↓
-Predictions
-      ↓
-Evaluation
-The current feature set:
-features = [
-    "Temperature",
-    "RH",
-    "Ws",
-    "Rain"
-]
-Target encoding:
-fire     → 1
-not fire → 0
-The shared loader is `src/data_loader.py`. Run commands from the project root:
+The model deliberately excludes `day`, `month`, and `year` as predictors. `Classes` is encoded as `fire = 1` and `not fire = 0`.
+Target:
+fire
+not fire
+Primary baseline: a 300-tree Random Forest with balanced class weights. A scaled Logistic Regression baseline is evaluated on the same fixed, stratified 80/20 split.
+
+The six fire-weather indices are included in this requested Stage-1 feature set, but they are not independent measurements: ISI is derived using FFMC and wind, BUI is derived from DMC/DC, and FWI combines ISI and BUI. Their related information can inflate apparent performance and make individual feature-importance values unstable. The 24-hour forecast in the long-term vision is not the current target: this dataset labels observed `Classes`, and the random holdout does not establish future or geographic forecasting skill.
+
+Stage-1 commands (run from the project root, after installing `requirements.txt`):
 
 ```bash
 python -m src.explore
 python -m src.train
 python -m src.compare_models
-python -m src.compare_feature_sets
-python -m src.predict --temperature 34 --humidity 31 --wind-speed 18 --rainfall 0
-```
-
-Training saves `models/random_forest_baseline.joblib` and writes the feature-importance plot to `reports/baseline_feature_importance.png`. Predictions load that saved model; they do not retrain it.
-📈 Model evaluation
-Do not judge the system using accuracy alone.
-The training and comparison commands report:
-- Accuracy
-- Precision
-- Recall
-- F1 score
-- Confusion matrix
-For wildfire risk, recall for fire events is particularly important, because missing a genuine fire-risk situation can be more serious than producing a false alarm.
-The baseline uses one seeded, stratified 80/20 random split. Its results are educational holdout metrics, not a reliable estimate of future or geographic performance. ROC-AUC, PR-AUC, calibration, and stronger validation remain future work.
-🔌 API
-Train the model first, then start the local API:
-
-```bash
-uvicorn src.api:app --reload
-```
-
-Send a `POST` request to `http://127.0.0.1:8000/predict`:
-
-```json
-{
-      "temperature": 34,
-      "humidity": 31,
-      "wind_speed": 18,
-      "rainfall": 0
-}
-```
-
-The response includes `fire_probability`, `predicted_class`, and `risk_level`. Invalid or out-of-range input receives HTTP `422`; the model is loaded from disk and is not trained by the API.
-
-Risk categories use the educational thresholds in `src/predict.py`: below 0.25 LOW, below 0.50 MODERATE, below 0.75 HIGH, otherwise EXTREME. These thresholds are not calibrated or validated warning levels.
-
-Run tests with:
-
-```bash
+python -m src.predict --temperature 34 --humidity 31 --wind-speed 18 --rainfall 0 --ffmc 80 --dmc 20 --dc 100 --isi 5 --bui 25 --fwi 6
 python -m unittest discover -s tests -v
 ```
 
-The feature-importance plot reflects how this fitted Random Forest used the features; it does not show causality. The separate index experiment intentionally adds FFMC, DMC, DC, ISI, BUI, and FWI only for comparison. These related fire-weather variables may make results look stronger and are not used by the saved baseline or prediction API.
+Training saves `models/random_forest_baseline.joblib`, including feature order, target mapping, and missing-value policy. The feature-importance chart is saved at `reports/baseline_feature_importance.png`.
 
-🔮 Future development
-Phase 3 — Geographic prediction
-Add:
-- latitude
-- longitude
+On the current 49-row holdout, the ten-feature Random Forest scored 1.000 for accuracy, precision, recall, F1, and ROC-AUC; its confusion matrix had no errors. Logistic Regression scored 0.939 accuracy, 0.931 precision, 0.964 recall, 0.947 F1, and 0.993 ROC-AUC. The four raw-weather-only experiment scored 0.816 accuracy. These unusually strong index-feature results are a reason for caution, not evidence of reliable operational prediction. False positives can trigger unnecessary response; false negatives can miss a fire event and may be more consequential. Threshold choice trades one kind of error against the other.
+
+Prototype risk display thresholds are: probability `< 0.25` LOW, `< 0.50` MODERATE, `< 0.75` HIGH, and otherwise EXTREME. They are visualization bands only and are not calibrated or scientifically validated wildfire warning thresholds.
+This is only the starting point. The final system is intended to use Indian geographic, satellite, meteorological, vegetation, terrain, and historical-fire data.
+4. High-Level Architecture
+Satellite / Fire Data ──────┐
+                            │
+Vegetation / Fuel ──────────┤
+                            │
+Weather ────────────────────┤
+                            ├──→ Data Processing
+Topography / DEM ───────────┤          │
+                            │          ↓
+Historical Fires ───────────┘   Feature Engineering
+                                       │
+                          ┌────────────┴────────────┐
+                          ↓                         ↓
+                  24h Risk Model             Spread Engine
+                          ↓                         ↓
+                  Risk Probability          Fire Progression
+                          │                         │
+                          └────────────┬────────────┘
+                                       ↓
+                              FastAPI Backend
+                                       ↓
+                              PostgreSQL/PostGIS
+                                       ↓
+                              React GIS Dashboard
+5. Data Requirements
+The final system should combine four major data categories.
+5.1 Satellite / Active Fire Data
+Potential sources from the blueprint:
+- ISRO INSAT-3D / INSAT-3DR
+- NASA MODIS
+- VIIRS
+- Sentinel-2
+- Sentinel-1
+- Google Earth Engine
+- other suitable satellite products
+Potential variables:
+- thermal anomalies
+- active fire detections
+- fire radiative power (FRP)
+- burn information
+5.2 Vegetation and Fuel
+Potential variables:
+- NDVI
+- NDWI
+- land-cover type
+- vegetation/fuel type
+Potential sources:
+- ISRO Bhuvan
+- Sentinel-2
+- Landsat
+- Google Earth Engine
+5.3 Meteorological Data
+Potential variables:
+- surface temperature
+- relative humidity
+- wind speed
+- wind direction
+- precipitation
+5.4 Topographical Data
+Potential variables:
 - elevation
 - slope
-- vegetation
+- aspect
+- terrain characteristics
+Potential sources:
+- CartoDEM
+- SRTM DEM
+- other appropriate DEM datasets
+6. Spatial and Temporal Processing
+The final system should align datasets onto a common spatial grid.
+Blueprint target:
+500 m × 500 m grid cells
+Each cell becomes an ML prediction unit.
+Conceptually:
+             REGION
+┌─────┬─────┬─────┬─────┐
+│ C01 │ C02 │ C03 │ C04 │
+├─────┼─────┼─────┼─────┤
+│ C05 │ C06 │ C07 │ C08 │
+├─────┼─────┼─────┼─────┤
+│ C09 │ C10 │ C11 │ C12 │
+└─────┴─────┴─────┴─────┘
+
+Each cell:
+weather + vegetation + terrain + history
+                    ↓
+              fire probability
+Datasets must also be temporally aligned so that training features represent information available at prediction time.
+7. Feature Engineering
+Planned feature groups:
+Weather
+- temperature
+- relative humidity
+- wind speed
+- wind direction
+- precipitation
+Vegetation
 - NDVI
-- historical fire density
-Then produce:
-🟢 Low
-🟡 Moderate
-🟠 High
-🔴 Extreme
-risk maps.
-Phase 4 — Future forecasting
-The target becomes:
-What is the probability of a fire occurring in this area during the next 24–48 hours?
-
-This requires time-aware data such as:
-- historical weather
-- weather forecasts
-- historical fire locations
-- vegetation conditions
+- NDWI
+- land-cover/fuel type
+Terrain
+- elevation
+- slope
+- aspect
+Fire-weather
+- FFMC
+- DMC
+- DC
+- ISI
+- BUI
+- FWI
+Historical fire information
+- previous fire occurrence
+- burned area
+- fire density
+- distance to previous fires
+- temporal fire patterns
+8. Module 1 — 24-Hour Fire Risk Prediction
+Goal
+For every geographical grid cell:
+P(fire within next 24 hours)
+Example:
+Cell A → 0.08
+Cell B → 0.31
+Cell C → 0.76
+Cell D → 0.91
+These probabilities become a GIS risk layer.
+Baseline models
+The blueprint recommends:
+- Random Forest
+- XGBoost
+The current prototype starts with Random Forest.
+Advanced models
+Later possibilities:
+- U-Net
+- Spatial-Temporal Graph Convolutional Network (ST-GCN)
+- other spatial-temporal models
+Advanced models should only be introduced after the baseline is working and properly validated.
+9. Module 2 — 12-Hour Fire Spread Simulation
+Once an ignition point is supplied:
+Ignition
+   ↓
+Current fire state
+   ↓
+Wind + terrain + fuel
+   ↓
+Spread simulation
+   ↓
+Future fire boundary
+Inputs:
+- initial ignition/fire location
+- current fire boundary
+- wind speed
+- wind direction
+- slope
+- aspect
+- vegetation/fuel type
 - terrain
-- seasonality
-Random train/test splitting should not be treated as sufficient for this stage.
-The ML API prototype is implemented. A future frontend can use this architecture:
-             Web / Mobile UI
-                    ↓
-                FastAPI
-                    ↓
-             Prediction API
-                    ↓
-              ML Model
-                    ↓
-          Fire-risk probability
-                    ↓
-             Risk classification
-⚠️ Scientific limitations
-The Algerian dataset is useful for learning but is not enough to claim that this system can reliably predict future forest fires in Himachal Pradesh or anywhere else.
-A real operational predictor would need geographically relevant, time-stamped data and independent validation.
-The eventual system should therefore be presented as:
-An AI-based forest fire risk prediction prototype
+Cellular Automata
+The first simulation approach can represent the region as a grid.
+Each cell may be:
+UNBURNED
+BURNING
+BURNED
+The next state depends on:
+- neighboring cells
+- wind
+- slope
+- fuel
+- current cell state
+Example:
+        wind →
+┌─────┬─────┬─────┐
+│     │ 🔥  │ 🔥  │
+├─────┼─────┼─────┤
+│     │ 🔥  │     │
+├─────┼─────┼─────┤
+│     │     │     │
+└─────┴─────┴─────┘
+Advanced physics-informed model
+The blueprint proposes physics-informed neural networks incorporating fire-spread physics, including Rothermel-style fire-spread relationships.
+This is a later-stage feature, not part of the first MVP.
+10. Expected Outputs
+The final platform should produce:
+- fire-risk probability for geographic cells
+- risk classification
+- interactive risk map
+- predicted fire boundary
+- spread direction
+- spread velocity
+- relative fire intensity
+- burned-area estimate
+- up to 12 hours of fire progression
+- interactive GIS visualization
+11. GIS Dashboard
+The dashboard should eventually contain:
+┌───────────────────────────────────────┐
+│ FOREST FIRE RISK DASHBOARD            │
+├───────────────────────────────────────┤
+│                                       │
+│       INTERACTIVE MAP                 │
+│                                       │
+│    🟢 🟢 🟡 🟠 🔴                     │
+│    🟢 🟡 🟠 🔴 🔴                     │
+│    🟡 🟠 🔴 🔴 🔴                     │
+│                                       │
+├───────────────────────────────────────┤
+│ Risk │ Active Fire │ Spread │ Terrain │
+├───────────────────────────────────────┤
+│ Time: 06:00 → 18:00                   │
+│                                       │
+│ Predicted boundary: ...               │
+│ Probability: 82%                      │
+└───────────────────────────────────────┘
+Required capabilities:
+- interactive geographical map
+- fire-risk overlay
+- active-fire/ignition visualization
+- predicted fire boundaries
+- time-based spread animation
+- terrain/environmental layers
+- location-specific information
+- optional 3D terrain visualization
+12. Backend
+Proposed backend:
+FastAPI
+Responsibilities:
+- expose prediction APIs
+- execute ML inference
+- receive geographic queries
+- start simulations
+- handle long-running simulation jobs
+- return prediction/simulation results
+- communicate with the database
+Asynchronous tasks may use:
+Celery
+when simulations become computationally expensive.
+13. Database
+Proposed:
+PostgreSQL + PostGIS
+Potential data:
+- geographic grid information
+- spatial geometries
+- historical fire events
+- active fires
+- environmental features
+- model predictions
+- simulation states
+- simulation results
+14. Technology Stack
+Component	Technology
+Data Processing	Python, GDAL, Rasterio, GeoPandas
+ML	Scikit-learn, XGBoost, PyTorch/TensorFlow
+Backend	FastAPI
+Async Jobs	Celery
+Database	PostgreSQL + PostGIS
+Frontend	React
+Mapping	Mapbox GL JS or Leaflet
+3D	Deck.gl / suitable 3D GIS library
+Satellite/GIS	Google Earth Engine, ISRO/NASA/ESA data where appropriate
 
-until it has undergone proper real-world validation.
-🚀 Long-term vision
-The final project should answer:
-"Where is a forest fire most likely to occur, and how risky will the conditions be over the next 24–48 hours?"
 
-Potential final architecture:
-Weather Forecast ────────┐
-                         │
-Satellite / NDVI ────────┤
-                         │
-Terrain ─────────────────┤
-                         ├──→ ML Model ──→ Fire Probability
-Historical Fires ────────┤                         │
-                         │                         ↓
-Season / Time ───────────┘                    Risk Level
-                                                   │
-                              ┌────────────────────┼─────────────────┐
-                              ↓                    ↓                 ↓
-                            Map              Dashboard           Alerts
-Development philosophy
-Build small. Understand the flow. Test every stage. Then add complexity.
+The exact technology should be chosen based on the requirements of each stage rather than adding every listed technology immediately.
+15. Functional Requirements
+ID	Requirement
+FR-01	Select a geographical region
+FR-02	Acquire required environmental datasets
+FR-03	Preprocess and align datasets to a common grid
+FR-04	Generate fire-risk features
+FR-05	Predict 24-hour fire susceptibility
+FR-06	Display fire susceptibility on an interactive map
+FR-07	Accept an active/simulated ignition point
+FR-08	Initialize fire-spread simulation
+FR-09	Simulate fire propagation for up to 12 hours
+FR-10	Use wind, terrain and fuel-related factors
+FR-11	Display predicted fire boundaries
+FR-12	Inspect predicted fire progression over time
+FR-13	Provide prediction/simulation results through APIs
+FR-14	Store relevant spatial and prediction information
 
+
+16. Non-Functional Requirements
+Performance
+The system should eventually execute large simulations efficiently.
+Scalability
+The architecture should support:
+- larger geographical regions
+- more grid cells
+- higher-resolution datasets
+Reliability
+Identical inputs should produce reproducible results where deterministic models are used.
+Visualization
+The GIS interface should remain responsive enough for practical inspection.
+Extensibility
+New:
+- satellite sources
+- weather sources
+- terrain datasets
+- ML models
+should be integrable without rewriting the entire system.
+Computational Efficiency
+GPU acceleration may be used later for computationally intensive spread simulations and neural models.
+17. Training and Validation
+The blueprint proposes historical Indian fire data, particularly covering diverse terrains such as:
+- Himalayas
+- Western Ghats
+and historical burn/fire information.
+For the final model, validation should include recent held-out fire events.
+Risk model metrics
+- accuracy
+- precision
+- recall
+- F1-score
+- ROC-AUC
+Spread model metrics
+- Intersection over Union (IoU)
+- predicted vs observed boundary overlap
+- area difference
+- spatial error
+Time-aware and geographically independent validation should be preferred over a simple random split when sufficient data becomes available.
+18. Key Challenges
+Cloud obstruction
+Satellite observations may be unavailable because of clouds.
+Possible mitigation:
+- Sentinel-1 SAR
+- complementary satellite sources
+- missing-data strategies
+Data imbalance
+Fire events may be much rarer than non-fire events.
+Possible mitigation:
+- class weighting
+- SMOTE where appropriate
+- careful sampling
+- appropriate evaluation metrics
+Computational latency
+Cellular-automata and spatial simulations may become expensive.
+Possible mitigation:
+- vectorization
+- optimized numerical operations
+- GPU acceleration
+- asynchronous processing
+19. Implementation Roadmap
+Stage 1 — ML Risk Prototype
+- historical fire + environmental dataset
+- preprocessing
+- Random Forest/XGBoost baseline
+- model evaluation
+- initial GIS risk map
+Stage 2 — Spread Simulation
+- cellular automata
+- 12-hour simulation
+- backend integration
+Stage 3 — Advanced Intelligence
+- satellite data
+- spatial-temporal models
+- physics-informed fire spread
+- GPU optimization
+20. Six-Month Blueprint
+Period	Deliverable
+Month 1–2	Automated satellite/weather/DEM data aggregation and preprocessing
+Month 3	Historical fire-risk model training
+Month 4	Cellular Automata spread simulation + physics calibration
+Month 5	FastAPI + GIS frontend
+Month 6	Testing, validation and blind back-testing
+
+
+21. MVP Scope
+For a realistic working prototype, implement incrementally:
+Stage 1
+Historical fire + environmental data → preprocessing → Random Forest/XGBoost → GIS risk map.
+Stage 2
+Add cellular-automata-based 12-hour spread simulation and backend integration.
+Stage 3
+Add advanced spatial models, physics-informed learning, additional satellite sources and GPU optimization.
+22. Final Deliverables
+The complete project aims to contain:
+- data ingestion pipeline
+- preprocessing pipeline
+- 24-hour fire-risk model
+- 12-hour fire-spread engine
+- physics-informed advanced component
+- FastAPI backend
+- PostgreSQL/PostGIS database
+- React GIS dashboard
+- model evaluation/validation pipeline
+- technical documentation
+- deployment documentation
+23. Important Scientific Limitation
+The initial Algerian dataset is a development dataset, not the final operational dataset.
+The final Indian fire-risk system must use geographically and temporally appropriate data and must be independently validated.
+The project should therefore be described as a:
+Predictive Forest Fire Risk & Spread Simulation Prototype
+
+until sufficient real-world validation has been completed.
+24. Development Philosophy
+Build the system one layer at a time:
+Dataset
+   ↓
+Cleaning
+   ↓
+EDA
+   ↓
+Baseline ML
+   ↓
+Validation
+   ↓
+Spatial features
+   ↓
+GIS risk map
+   ↓
+Spread simulation
+   ↓
+API
+   ↓
+Database
+   ↓
+Dashboard
+   ↓
+Advanced models
+   ↓
+Deployment
+Do not build the entire system in one step.

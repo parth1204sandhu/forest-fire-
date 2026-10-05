@@ -1,4 +1,4 @@
-"""Load the saved baseline model and predict fire risk for one observation."""
+"""Load the saved ten-feature baseline and predict fire risk."""
 
 import argparse
 import math
@@ -7,27 +7,37 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
-from src.data_loader import BASELINE_FEATURES, PROJECT_ROOT
+from src.data_loader import BASELINE_FEATURES, PROJECT_ROOT, TARGET_MAPPING
 
 
 MODEL_PATH = PROJECT_ROOT / "models" / "random_forest_baseline.joblib"
 INPUT_BOUNDS = {
-    "temperature": (-20.0, 60.0),
-    "humidity": (0.0, 100.0),
-    "wind_speed": (0.0, 200.0),
-    "rainfall": (0.0, 500.0),
+    "Temperature": (-20.0, 60.0),
+    "RH": (0.0, 100.0),
+    "Ws": (0.0, 200.0),
+    "Rain": (0.0, 500.0),
+    "FFMC": (0.0, 101.0),
+    "DMC": (0.0, 1000.0),
+    "DC": (0.0, 2000.0),
+    "ISI": (0.0, 100.0),
+    "BUI": (0.0, 1000.0),
+    "FWI": (0.0, 100.0),
 }
 RISK_THRESHOLDS = ((0.25, "LOW"), (0.50, "MODERATE"), (0.75, "HIGH"))
 
 
 def load_model(model_path: str | Path = MODEL_PATH):
-    """Load a model previously saved by the training script."""
+    """Load the model together with its feature and label metadata."""
     path = Path(model_path)
     if not path.is_file():
         raise FileNotFoundError(
             f"Saved model not found at {path}. Train it first with: python -m src.train"
         )
-    return joblib.load(path)
+    artifact = joblib.load(path)
+    required_keys = {"model", "feature_columns", "target_mapping"}
+    if not isinstance(artifact, dict) or not required_keys.issubset(artifact):
+        raise ValueError("Saved model artifact is missing inference metadata; retrain it.")
+    return artifact
 
 
 def classify_risk(fire_probability: float) -> str:
@@ -61,34 +71,52 @@ def predict_fire_risk(
     humidity: float,
     wind_speed: float,
     rainfall: float,
+    ffmc: float,
+    dmc: float,
+    dc: float,
+    isi: float,
+    bui: float,
+    fwi: float,
     model=None,
 ) -> dict[str, float | str]:
     """Return fire probability, predicted class, and prototype risk level."""
     conditions = _validate_conditions(
         {
-            "temperature": temperature,
-            "humidity": humidity,
-            "wind_speed": wind_speed,
-            "rainfall": rainfall,
+            "Temperature": temperature,
+            "RH": humidity,
+            "Ws": wind_speed,
+            "Rain": rainfall,
+            "FFMC": ffmc,
+            "DMC": dmc,
+            "DC": dc,
+            "ISI": isi,
+            "BUI": bui,
+            "FWI": fwi,
         }
     )
-    model = model if model is not None else load_model()
-    observation = pd.DataFrame(
-        [[
-            conditions["temperature"],
-            conditions["humidity"],
-            conditions["wind_speed"],
-            conditions["rainfall"],
-        ]],
-        columns=BASELINE_FEATURES,
+    artifact = model if isinstance(model, dict) else None
+    if artifact is None and model is None:
+        artifact = load_model()
+    estimator = artifact["model"] if artifact is not None else model
+    feature_columns = (
+        artifact["feature_columns"]
+        if artifact is not None
+        else list(getattr(estimator, "feature_names_in_", BASELINE_FEATURES))
     )
+    target_mapping = artifact["target_mapping"] if artifact is not None else TARGET_MAPPING
+    observation = pd.DataFrame([[conditions[column] for column in feature_columns]], columns=feature_columns)
 
-    fire_class_index = list(model.classes_).index(1)
-    fire_probability = float(model.predict_proba(observation)[0][fire_class_index])
-    predicted_class = "fire" if int(model.predict(observation)[0]) == 1 else "not fire"
+    fire_class = target_mapping["fire"]
+    fire_class_index = list(estimator.classes_).index(fire_class)
+    fire_probability = float(estimator.predict_proba(observation)[0][fire_class_index])
+    predicted_value = int(estimator.predict(observation)[0])
+    predicted_class = next(
+        label for label, encoded_value in target_mapping.items() if encoded_value == predicted_value
+    )
     return {
         "fire_probability": fire_probability,
         "predicted_class": predicted_class,
+        "prediction": predicted_class.upper(),
         "risk_level": classify_risk(fire_probability),
     }
 
@@ -99,6 +127,12 @@ def main() -> None:
     parser.add_argument("--humidity", type=float, required=True, help="Relative humidity in percent")
     parser.add_argument("--wind-speed", type=float, required=True, help="Wind speed in km/h")
     parser.add_argument("--rainfall", type=float, required=True, help="Rainfall in mm")
+    parser.add_argument("--ffmc", type=float, required=True, help="Fine Fuel Moisture Code")
+    parser.add_argument("--dmc", type=float, required=True, help="Duff Moisture Code")
+    parser.add_argument("--dc", type=float, required=True, help="Drought Code")
+    parser.add_argument("--isi", type=float, required=True, help="Initial Spread Index")
+    parser.add_argument("--bui", type=float, required=True, help="Build Up Index")
+    parser.add_argument("--fwi", type=float, required=True, help="Fire Weather Index")
     arguments = parser.parse_args()
 
     try:
@@ -107,12 +141,19 @@ def main() -> None:
             arguments.humidity,
             arguments.wind_speed,
             arguments.rainfall,
+            arguments.ffmc,
+            arguments.dmc,
+            arguments.dc,
+            arguments.isi,
+            arguments.bui,
+            arguments.fwi,
         )
     except (FileNotFoundError, ValueError) as error:
         parser.error(str(error))
 
     print(f"Fire probability: {prediction['fire_probability']:.2f}")
     print(f"Predicted class: {prediction['predicted_class']}")
+    print(f"Prediction: {prediction['prediction']}")
     print(f"Risk level: {prediction['risk_level']}")
 
 

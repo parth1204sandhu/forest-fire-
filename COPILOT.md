@@ -1,182 +1,334 @@
-# Copilot Instructions — Forest Fire Predictor
+Copilot Instructions — Predictive Forest Fire Risk & Spread Simulation
+Read this first
+Before changing code, read:
+- README.md
+- copilot.md
+- skill.md
+These files define the project requirements and development rules.
+1. Project objective
+Build an AI-powered forest-fire risk and spread simulation system based on the provided technical blueprint.
+The system has two primary ML/simulation modules:
+1. 24-hour fire-risk prediction
+2. 12-hour fire-spread simulation
+and one primary application layer:
+3. GIS disaster-management dashboard
+2. Development strategy
+This is an incremental project.
+DO NOT:
+- generate the entire application at once
+- replace working code unnecessarily
+- create a frontend before the ML core works
+- introduce PostgreSQL/PostGIS before spatial data is actually required
+- introduce deep learning before baseline models are evaluated
+- claim that prototype accuracy represents real-world wildfire prediction
+- fabricate satellite/weather/fire data
+- modify the original raw dataset
+DO:
+- inspect the repository before editing
+- reuse existing working code
+- make small changes
+- test after each change
+- explain major architectural decisions
+- preserve reproducibility
+- keep modules separated
+3. Target architecture
+Satellite / Fire
+Vegetation / Fuel
+Weather
+Topography
+Historical Fires
+        ↓
+Data ingestion
+        ↓
+Cleaning + spatial/temporal alignment
+        ↓
+Feature engineering
+        ↓
+24h Risk Model ──────────────┐
+                             │
+Active Fire + Terrain ──────→ Spread Engine
+                             │
+                             ↓
+                         FastAPI
+                             ↓
+                       PostgreSQL/PostGIS
+                             ↓
+                        React GIS UI
+4. Current project stage
+The current prototype already uses the Algerian Forest Fires Dataset.
+Current baseline:
+Features:
+Temperature
+RH
+Ws
+Rain
 
-## Project goal
+Target:
+fire / not fire
 
-This project is an AI/ML-based forest fire **risk predictor**.
+Model:
+Random Forest
+The current dataset contains approximately 243 usable rows after cleaning.
+Do not throw away this working baseline while adding new features.
+5. Risk-model requirements
+Baseline
+Use Random Forest or XGBoost.
+Start with:
+Temperature
+RH
+Ws
+Rain
+Then separately evaluate:
+FFMC
+DMC
+DC
+ISI
+BUI
+FWI
+Do not automatically mix all features together.
+These fire-weather indices are derived fire-danger variables, so their inclusion must be scientifically explained.
+6. Final risk model inputs
+The final system should support:
+Weather
+- temperature
+- relative humidity
+- wind speed
+- wind direction
+- precipitation
+Vegetation
+- NDVI
+- NDWI
+- land-cover/fuel type
+Terrain
+- elevation
+- slope
+- aspect
+Fire history
+- previous fire occurrence
+- burned area
+- historical fire density
+- spatial/temporal fire patterns
+Fire-weather indices
+- FFMC
+- DMC
+- DC
+- ISI
+- BUI
+- FWI
+7. Spatial design
+The blueprint proposes approximately:
+500 m × 500 m grid cells
+The final risk model should eventually produce:
+grid cell → fire probability
+Example:
+{
+  "cell_id": "HIM_001",
+  "latitude": 31.7,
+  "longitude": 77.1,
+  "fire_probability": 0.82,
+  "risk_level": "HIGH"
+}
+Do not implement spatial grids until the project reaches the spatial-data stage.
+8. 24-hour prediction
+The target is:
+probability that a geographic grid cell experiences a fire within the next 24 hours.
 
-The current goal is to learn the complete pipeline:
-
-`historical environmental data → data cleaning → analysis → ML model → probability → risk level → API/dashboard → deployment`
-
-This is a learning project first and a polished application second.
-
-## Current status
-
-- Development environment: Ubuntu/Linux
-- Language: Python 3
-- Virtual environment: `venv`
-- Dataset: Algerian Forest Fires Dataset
-- Dataset location: `data/Algerian_forest_fires_dataset_UPDATE.csv`
-- Current cleaned dataset: approximately 243 usable observations
-- Current baseline model: Random Forest Classifier
-- Current baseline features:
-  - Temperature
-  - RH (relative humidity)
-  - Ws (wind speed)
-  - Rain
-- Target:
-  - `fire`
-  - `not fire`
-
-## Important project principles
-
-1. **Do not generate the entire application at once.**
-   Build it incrementally and keep the architecture understandable.
-
-2. **Explain before adding complexity.**
-   When introducing a library, model, API, database, or framework, explain:
-   - what it does
-   - why we need it
-   - where it fits in the architecture
-
-3. **Prefer simple, readable code.**
-   This project is being built by a beginner who is learning Python, ML, Linux, networking, and backend development.
-
-4. **Do not hide important logic behind unnecessary abstractions.**
-   The user should be able to understand the data flow.
-
-5. **Never silently fabricate data.**
-   If a dataset, API, weather source, satellite source, or geographic source is required, say so.
-
-6. **Keep the original dataset untouched.**
-   Perform cleaning through Python/data-processing code.
-
-7. **Avoid data leakage.**
-   Do not use information that would only be known after or during a fire when claiming to predict future fire risk.
-
-8. **Treat FWI-related variables carefully.**
-   `FFMC`, `DMC`, `DC`, `ISI`, `BUI`, and `FWI` are fire-weather indices and may contain information derived from environmental conditions. They must not be casually added to a model and presented as proof of strong forecasting ability.
-
-9. **Use proper train/test separation.**
-   Never evaluate on the same observations used for training.
-
-10. **For future forecasting, prefer time-aware validation.**
-    Random train/test splitting is acceptable for the first learning baseline, but future versions should consider temporal validation.
-
-## Coding conventions
-
+The model must distinguish:
+prediction time
+        ↓
+available information
+        ↓
+next 24 hours
+Avoid temporal leakage.
+A feature that is only known after the fire occurs cannot be used to claim future prediction.
+9. Validation
+For the early prototype:
+- train/test split is acceptable
+- use stratification
+- fixed random seed
+- report multiple metrics
+For the final forecasting system:
+Prefer:
+- time-based splits
+- geographically independent validation
+- blind back-testing
+- recent held-out fire events
+Metrics:
+Accuracy
+Precision
+Recall
+F1
+ROC-AUC
+For spatial spread:
+IoU
+boundary overlap
+burned-area error
+spatial displacement
+10. Probability output
+The model should provide probability rather than only a class.
+Use:
+model.predict_proba(...)
+Then map the probability to a prototype risk level.
+Do not present arbitrary thresholds as scientifically validated thresholds.
+11. Spread simulation
+The second module predicts how an active fire progresses over 12 hours.
+Initial implementation:
+Cellular Automata
+States:
+UNBURNED
+BURNING
+BURNED
+Transition factors:
+- neighboring cells
+- wind direction
+- wind speed
+- slope
+- aspect
+- vegetation/fuel
+Later, an advanced physics-informed model may incorporate fire-spread physics/Rothermel-style relationships.
+Do not implement a neural physics model before the cellular-automata baseline works.
+12. GIS dashboard
+The eventual frontend should visualize:
+- risk layer
+- active fires
+- ignition points
+- predicted fire boundaries
+- terrain
+- environmental layers
+- time progression
+- location-specific predictions
+Potential mapping technologies:
+- Mapbox GL JS
+- Leaflet
+Potential frontend:
+- React
+Do not create a complex UI until backend prediction endpoints are stable.
+13. Backend
+Preferred backend:
+FastAPI
+Potential endpoints:
+GET  /health
+POST /predict
+POST /risk-map
+POST /simulate
+GET  /simulation/{id}
+Long-running simulations can later use Celery.
+14. Database
+Preferred:
+PostgreSQL + PostGIS
+Use it for:
+- geographic grids
+- geometries
+- historical fire events
+- predictions
+- simulation states
+- environmental data references
+Do not add it prematurely.
+15. Data sources
+Potential final sources include:
+Satellite
+- ISRO INSAT-3D/3DR
+- NASA MODIS
+- VIIRS
+- Sentinel-1
+- Sentinel-2
+- Google Earth Engine
+Vegetation
+- Bhuvan
+- Sentinel
+- Landsat
+- NDVI/NDWI products
+Weather
+- appropriate historical weather datasets
+- forecast weather APIs
+Terrain
+- CartoDEM
+- SRTM
+- other suitable DEMs
+Never pretend to have accessed a source unless it is actually available.
+16. Code quality
+Use:
 - Python 3
-- Use clear variable names.
-- Use functions when logic becomes reusable.
-- Keep scripts small and focused.
-- Add comments for important ML/data-processing decisions, not every obvious line.
-- Prefer `pathlib` for new filesystem code.
-- Use `pandas` for tabular data.
-- Use `scikit-learn` for baseline ML.
-- Save trained models explicitly rather than retraining on every prediction.
-
-## Expected project structure
-
-```text
-forest-fire-predictor/
-├── data/
-│   └── Algerian_forest_fires_dataset_UPDATE.csv
-├── models/
-├── src/
-│   ├── explore.py
-│   ├── model.py
-│   └── ...
-├── venv/
-├── README.md
-├── copilot.md
-└── skill.md
-```
-
-## Planned architecture
-
-### Phase 1 — ML foundation
-- Load and clean historical data
-- Explore distributions and relationships
-- Establish a baseline model
-- Evaluate accuracy, precision, recall, F1, and confusion matrix
-- Generate calibrated/meaningful fire probabilities
-
-### Phase 2 — Better prediction
-- Feature engineering
-- Compare Random Forest, Logistic Regression, and gradient boosting
-- Handle class imbalance if needed
-- Use cross-validation
-- Investigate temporal validation
-- Evaluate probability calibration
-
-### Phase 3 — Geographic risk
-- Latitude/longitude
-- Terrain/elevation
-- Vegetation/NDVI
-- Historical fire locations
-- Grid-based risk prediction
-- Interactive map
-
-### Phase 4 — Forecasting
-- Weather forecast data
-- 24-hour / 48-hour risk prediction
-- Time-based features
-- Historical fire frequency
-- Separate training/validation periods
-
-### Phase 5 — Application
-```text
-Frontend
+- type hints where useful
+- small modules
+- clear names
+- reusable functions
+- pathlib
+- logging for application services
+- configuration through environment variables where appropriate
+Avoid:
+- giant scripts
+- duplicated preprocessing
+- hard-coded absolute paths
+- secrets in source code
+- unnecessary abstractions
+17. Required development workflow
+For every major task:
+Step 1
+Inspect the current repository.
+Step 2
+Identify the smallest change required.
+Step 3
+Explain:
+What are we adding?
+Why?
+Which files change?
+Step 4
+Implement it.
+Step 5
+Run the relevant tests/commands.
+Step 6
+Report:
+Completed
+Test result
+Next logical step
+Do not skip directly to later phases.
+18. Current priority
+The immediate priority is:
+Clean dataset
    ↓
-FastAPI backend
+Baseline Random Forest
    ↓
-Prediction service
+Evaluation
    ↓
-Trained ML model
+Probability prediction
    ↓
-Risk probability
-```
+Save model
+   ↓
+Prediction script
+   ↓
+Feature analysis
+   ↓
+GIS risk layer
+Only after that should the spread simulation be built.
+19. Scientific honesty
+Never say:
+"The model predicts forest fires accurately in India"
 
-Possible additions:
-- PostgreSQL/Supabase
-- authentication
-- map visualization
-- alerts
-- scheduled predictions
+unless it has been independently validated on appropriate Indian data.
+Use language such as:
+"prototype"
 
-### Phase 6 — Deployment
-- Docker
-- backend deployment
-- frontend deployment
-- environment variables/secrets
-- logging
-- monitoring
+"experimental model"
 
-## ML safety and scientific honesty
+"development dataset"
 
-This project should be described as a **prototype/research/educational risk prediction system**, not as a certified wildfire warning system.
+"risk estimate"
 
-Do not claim that the model can reliably predict real-world fires unless it has been validated on appropriate, independent, time-separated, geographically relevant data.
-
-Accuracy alone is not enough. For a fire-risk system, pay attention to:
-- recall for fire events
-- precision
-- F1 score
-- confusion matrix
-- ROC-AUC / PR-AUC where appropriate
-- calibration of predicted probabilities
-- false negatives
-
-A false negative can be much more consequential than a false positive.
-
-## How Copilot should behave
-
-When asked to implement something:
-
-1. Explain the purpose in 1–3 sentences.
-2. Identify which file should change.
-3. Make the smallest useful change.
-4. Explain how the change connects to the pipeline.
-5. Give the command to test it.
-6. Do not rewrite unrelated files.
-7. Do not introduce a new framework without a reason.
+The system is decision support, not a certified emergency-warning system.
+20. Final principle
+Build the system from simple to advanced:
+Random Forest
+      ↓
+Better features
+      ↓
+Spatial model
+      ↓
+GIS
+      ↓
+Cellular Automata
+      ↓
+Physics-informed model
+      ↓
+Operational architecture
+Every advanced component must have a clear reason to exist.

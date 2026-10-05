@@ -1,544 +1,422 @@
-# Skill Guide — Forest Fire Predictor
-
-This file defines how to work on the Forest Fire Predictor project efficiently and safely.
-
----
-
-# 1. Project objective
-
-Build an end-to-end forest fire **risk prediction** system.
-
-The intended pipeline is:
-
-```text
-Data
+Skill Guide — Forest Fire Risk & Spread Simulation
+This document defines the technical skills and implementation rules for building the project.
+1. Core engineering skill tree
+The project should develop skills in this order:
+Python
  ↓
-Cleaning
+Pandas / NumPy
  ↓
-Exploration
+Machine Learning
  ↓
-Feature Engineering
+Geospatial Data
  ↓
-ML Training
+Model Validation
  ↓
-Evaluation
+FastAPI
  ↓
-Probability Prediction
+PostgreSQL/PostGIS
  ↓
-Risk Level
+React + GIS
  ↓
-API
+Fire Simulation
  ↓
-Map / Dashboard
+Deep Learning / Physics-Informed ML
  ↓
 Deployment
-```
-
-The project should be built one layer at a time.
-
----
-
-# 2. Current skill level assumptions
-
-The developer is comfortable with:
-
-- basic programming concepts
-- some C++
-- beginner Python
-- Linux basics
-- basic Git
-
-The developer is still learning:
-
-- pandas
-- machine learning
-- APIs
-- databases
-- authentication
-- deployment
-- GIS
-- model evaluation
-
-Therefore, solutions should be practical but understandable.
-
----
-
-# 3. How to explain new code
-
-Whenever adding a significant piece of code, explain:
-
-### What?
-
-What does this code do?
-
-### Why?
-
-Why do we need it?
-
-### Where?
-
-Where does it sit in the project architecture?
-
-### How?
-
-What happens when it runs?
-
-Example:
-
-```text
-model.fit(X_train, y_train)
-```
-
-Explain:
-
-```text
-X_train = environmental conditions
-y_train = known fire/no-fire outcomes
-
-The model searches for patterns connecting
-environmental conditions to the target.
-```
-
-Do not just paste code without context.
-
----
-
-# 4. Data workflow
-
-The dataset should flow through:
-
-```text
-Raw dataset
-    ↓
-Validation
-    ↓
-Cleaning
-    ↓
-Feature selection
-    ↓
-Train/test split
-    ↓
-Training
-```
-
-Never modify the original raw dataset unless there is a deliberate reason.
-
-Prefer:
-
-```python
-df = pd.read_csv(...)
-clean_df = ...
-```
-
-over permanently editing the source CSV.
-
----
-
-# 5. Data leakage
-
-Data leakage is one of the most important concepts in this project.
-
-Do not allow the model to see information that would not be available at prediction time.
-
-For example, if predicting tomorrow's fire risk, features calculated using information from after the prediction time cannot be used.
-
-Be especially careful with:
-
-- future observations
-- fire occurrence itself
-- post-fire satellite information
-- derived fire indices
-- target-derived features
-
----
-
-# 6. FWI-related features
-
-The dataset contains:
-
-```text
+Do not jump to the final technology stack before understanding the earlier layers.
+2. Data Engineering
+Skills
+Learn to:
+- load CSV/JSON/raster/vector data
+- clean missing values
+- normalize column names
+- validate data types
+- detect corrupt rows
+- align timestamps
+- align spatial datasets
+- create reproducible preprocessing pipelines
+Required principle
+Never overwrite the raw dataset.
+Use:
+raw data
+   ↓
+processing
+   ↓
+clean/intermediate data
+   ↓
+model-ready data
+3. Machine Learning
+First baseline
+Use:
+Random Forest
+Why:
+- strong tabular baseline
+- handles nonlinear relationships
+- little preprocessing required
+- provides feature importance
+- easy to explain
+Second baseline
+Use:
+Logistic Regression
+Purpose:
+Understand the difference between a simple linear model and a nonlinear ensemble.
+Later
+Evaluate:
+XGBoost
+Gradient Boosting
+Then consider spatial/deep-learning approaches.
+4. Feature Engineering
+Group features by physical meaning.
+Weather
+Temperature
+RH
+Wind Speed
+Wind Direction
+Rainfall
+Vegetation
+NDVI
+NDWI
+Land Cover
+Fuel Type
+Terrain
+Elevation
+Slope
+Aspect
+Fire Weather
 FFMC
 DMC
 DC
 ISI
 BUI
 FWI
-```
-
-These are important fire-weather indices.
-
-They should be treated carefully because:
-
-```text
-Weather conditions
-      ↓
-Fire-weather calculations
-      ↓
-FWI-related indices
-```
-
-If the model uses these, it may achieve very strong performance because the features already encode fire-danger information.
-
-That is not automatically bad, but it must be explained honestly.
-
----
-
-# 7. Model development strategy
-
-Start with simple baselines.
-
-Recommended order:
-
-### Model 1
-
-Random Forest using:
-
-```text
-Temperature
-RH
-Ws
-Rain
-```
-
-### Model 2
-
-Logistic Regression.
-
-Purpose:
-
-Understand whether a simple linear model performs similarly.
-
-### Model 3
-
-Random Forest with additional features.
-
-### Model 4
-
-Gradient boosting.
-
-Compare models using appropriate validation.
-
----
-
-# 8. Evaluation
-
-Never report only:
-
-```text
-Accuracy = 95%
-```
-
-Instead report:
-
-```text
-Accuracy
+History
+Previous fires
+Burned area
+Fire density
+Distance to historical fire
+Seasonality
+5. Spatial ML
+The final model should operate on geographical cells rather than a single generic row.
+Concept:
+Location
+   ↓
+500m × 500m grid cell
+   ↓
+Environmental feature vector
+   ↓
+Model
+   ↓
+Fire probability
+This creates a spatial risk surface.
+6. Temporal ML
+The final target is not simply:
+"Was there a fire?"
+It should become something closer to:
+"Will this cell experience a fire within the next 24 hours?"
+Therefore features must represent information available before the prediction window.
+Avoid:
+future weather
+future fire state
+post-fire satellite measurements
+future-derived features
+7. Model Validation
+Early stage
+Use:
+train_test_split(..., stratify=y)
+Mature stage
+Prefer:
+historical period → training
+later period       → validation
+latest period      → test
+Also test geographically separated regions where possible.
+8. Risk metrics
+A fire-risk model must not be evaluated only by accuracy.
+Use:
 Precision
+Of predicted fires, how many were actual fires?
 Recall
+Of actual fires, how many did we detect?
 F1
-Confusion Matrix
+Balance between precision and recall.
 ROC-AUC
+Measures ranking ability across thresholds.
 PR-AUC
+Especially useful when fire events become rare.
 Calibration
-```
-
-For fire detection/risk prediction, pay special attention to:
-
-```text
-False Negatives
-```
-
-because a false negative means:
-
-```text
-Actual fire risk
-      ↓
-Model says low/no risk
-```
-
----
-
-# 9. Probability vs classification
-
-The final system should preferably output:
-
-```text
-Probability = 0.78
-```
-
-rather than only:
-
-```text
-FIRE
-```
-
-Then convert probability into a risk category.
-
-Example prototype thresholds:
-
-```text
-0.00–0.24 → LOW
-0.25–0.49 → MODERATE
-0.50–0.74 → HIGH
-0.75–1.00 → EXTREME
-```
-
-These are **prototype UI thresholds**, not scientifically validated thresholds. Eventually they should be selected using calibration, validation data, and domain requirements.
-
----
-
-# 10. Geographic extension
-
-The future model should operate on geographic cells.
-
-Example:
-
-```text
-Region
- ↓
-Grid cells
- ↓
-Each cell gets:
-    latitude
-    longitude
-    weather
-    vegetation
-    terrain
-    historical fire features
- ↓
-ML model
- ↓
-risk probability
-```
-
-The output can become a heatmap.
-
----
-
-# 11. Forecasting extension
-
-A true predictive system should eventually use future weather forecasts.
-
-Example:
-
-```text
-Current time: 10:00 AM
-
-Forecast:
-12:00 → 33°C, 31% RH
-15:00 → 35°C, 27% RH
-18:00 → 32°C, 35% RH
-
-Historical + geographic information
-                ↓
-             ML model
-                ↓
-       Future fire probability
-```
-
-This is different from simply detecting an existing fire.
-
----
-
-# 12. Backend architecture
-
-When the ML model is stable:
-
-```text
-Frontend
-   ↓ HTTP
-FastAPI
-   ↓
-Prediction Service
-   ↓
-Saved ML Model
-   ↓
-Probability
-```
-
-Example:
-
-```http
+Checks whether:
+80% probability
+actually corresponds roughly to an 80% event frequency under comparable conditions.
+9. Risk classification
+The model should internally produce:
+0.00 → 1.00
+Then the application can display categories.
+Example prototype:
+0.00–0.24 LOW
+0.25–0.49 MODERATE
+0.50–0.74 HIGH
+0.75–1.00 EXTREME
+These thresholds must eventually be validated rather than treated as universal scientific standards.
+10. GIS Skills
+Learn:
+- coordinate reference systems
+- raster vs vector data
+- GeoJSON
+- shapefiles
+- GeoTIFF
+- spatial joins
+- raster resampling
+- reprojection
+- spatial indexing
+- geographic grids
+Python tools:
+GeoPandas
+Rasterio
+GDAL
+Shapely
+11. Satellite Data Skills
+Eventually learn to work with:
+MODIS / VIIRS
+Useful for:
+- active fire
+- thermal anomalies
+- fire radiative power
+Sentinel-2
+Useful for:
+- vegetation
+- NDVI
+- NDWI
+- land cover
+Sentinel-1
+Useful because SAR can provide information even when optical imagery is affected by clouds.
+INSAT
+Potentially useful for regional meteorological/thermal monitoring depending on available products.
+12. Fire-Spread Simulation
+Start with Cellular Automata.
+Grid:
+┌───┬───┬───┐
+│ U │ U │ U │
+├───┼───┼───┤
+│ U │ B │ U │
+├───┼───┼───┤
+│ U │ U │ U │
+└───┴───┴───┘
+Where:
+U = Unburned
+B = Burning
+At each timestep:
+new_state =
+    current state
+    + neighborhood
+    + wind
+    + slope
+    + fuel
+Eventually:
+UNBURNED → BURNING → BURNED
+13. Fire Physics
+Later learn:
+- Rothermel fire spread
+- fuel moisture
+- rate of spread
+- wind influence
+- slope influence
+- fireline intensity
+Physics should be used to constrain or inform advanced models rather than adding complicated equations without validation.
+14. Backend Skills
+Learn FastAPI concepts:
+HTTP
+REST
+JSON
+request validation
+response models
+routing
+dependency injection
+authentication
+background tasks
+Initial endpoint:
 POST /predict
-```
-
-Request:
-
-```json
+Input:
 {
   "temperature": 34,
   "humidity": 31,
   "wind_speed": 18,
   "rainfall": 0
 }
-```
-
-Response:
-
-```json
+Output:
 {
   "fire_probability": 0.78,
-  "risk": "HIGH"
+  "risk_level": "HIGH"
 }
-```
-
----
-
-# 13. Frontend architecture
-
-The frontend should not contain the ML model.
-
-Correct:
-
-```text
-Frontend
-   ↓
-API
-   ↓
-Python model
-```
-
-Incorrect:
-
-```text
-Frontend
-   ↓
-ML model directly
-```
-
-This separation makes deployment and maintenance easier.
-
----
-
-# 14. Database
-
-A database becomes useful when the project needs:
-
-- users
-- saved predictions
-- historical predictions
-- locations
-- alerts
-- dashboard history
-
-Do not add a database merely because modern applications usually have one.
-
-Add it when persistent application data is actually needed.
-
----
-
-# 15. Deployment
-
-Possible final architecture:
-
-```text
-                 Internet
-                    │
-             ┌──────┴──────┐
-             │             │
-          Frontend       API
-                           │
-                      ML Model
-                           │
-                       Database
-```
-
-Use environment variables for secrets.
-
-Never commit:
-
-```text
-API keys
-passwords
-tokens
-database credentials
-```
-
-to Git.
-
----
-
-# 16. Recommended development order
-
-Follow this order:
-
-```text
-1. Dataset
-2. Cleaning
-3. EDA
-4. Baseline model
-5. Evaluation
-6. Probability output
-7. Model persistence
-8. Prediction script
-9. Better features
-10. Geographic data
-11. Weather forecasting
-12. FastAPI
-13. Frontend
-14. Map
-15. Database
-16. Alerts
-17. Docker
-18. Deployment
-```
-
-Do not jump directly to step 13.
-
----
-
-# 17. Git workflow
-
-Commit meaningful milestones.
-
-Example:
-
-```bash
-git add .
-git commit -m "Clean forest fire dataset"
-```
-
+15. Async Simulation
+A 12-hour simulation may take longer than a normal HTTP request.
+Eventually:
+POST /simulate
+       ↓
+create job
+       ↓
+Celery worker
+       ↓
+simulation
+       ↓
+store results
+       ↓
+frontend retrieves results
+Do not add Celery until the synchronous simulation works.
+16. Database Skills
+Learn PostgreSQL first.
 Then:
-
-```bash
-git commit -m "Add baseline random forest model"
-```
-
-Avoid commits like:
-
-```text
-stuff
-changes
-final final
-test
-```
-
-Good commit history should tell the story of the project.
-
----
-
-# 18. Quality checklist
-
-Before considering a feature complete:
-
-- Does it work?
-- Can we explain it?
-- Is the data flow correct?
-- Is there data leakage?
-- Is there a test?
-- Does it handle missing/invalid input?
-- Does it introduce unnecessary complexity?
-- Is the result scientifically honest?
-
----
-
-# 19. Core principle
-
-The goal is not:
-
-> "Generate the biggest AI project possible."
-
-The goal is:
-
-> **Build a real forest-fire risk prediction system while understanding how every major component connects.**
-
-Keep the system simple until complexity is justified.
+PostGIS
+for:
+- points
+- polygons
+- grid cells
+- spatial queries
+- geometry storage
+Possible entities:
+regions
+grid_cells
+fire_events
+environmental_observations
+predictions
+simulations
+simulation_states
+17. Frontend/GIS Skills
+React should consume the backend rather than contain ML logic.
+Architecture:
+React
+  ↓ HTTP
+FastAPI
+  ↓
+ML/Simulation
+Mapping:
+Leaflet
+or:
+Mapbox GL JS
+The frontend should visualize model outputs, not retrain models.
+18. Advanced ML
+Only after the tabular/spatial baseline works:
+U-Net
+Useful for spatial raster prediction/segmentation problems.
+ST-GCN
+Useful for spatial-temporal relationships between neighboring grid cells over time.
+Physics-informed neural networks
+Useful for incorporating physical constraints into learned models.
+These are advanced components, not MVP requirements.
+19. Testing Skills
+Test:
+Data
+- expected columns
+- data types
+- missing values
+- valid target classes
+ML
+- probability is between 0 and 1
+- model loads correctly
+- same model/input produces reproducible output where expected
+API
+- valid request
+- missing field
+- invalid number
+- out-of-range value
+- server error handling
+Simulation
+- ignition point accepted
+- grid updates
+- simulation terminates
+- boundaries remain valid
+20. Performance Skills
+Early:
+NumPy
+vectorization
+efficient pandas operations
+Later:
+parallel processing
+GPU
+PyTorch
+CUDA
+Avoid Python loops over millions of spatial cells when vectorized operations are possible.
+21. Deployment Skills
+Final deployment should eventually include:
+Frontend
+Backend
+Database
+ML model
+Simulation worker
+Potentially containerized with:
+Docker
+Docker Compose
+Use environment variables for:
+- API keys
+- database passwords
+- tokens
+- service credentials
+Never commit secrets.
+22. Development order
+The recommended skill/project sequence is:
+PHASE 1
+Python + pandas + dataset
+        ↓
+PHASE 2
+EDA + Random Forest
+        ↓
+PHASE 3
+Model evaluation + probability
+        ↓
+PHASE 4
+Feature engineering
+        ↓
+PHASE 5
+Indian historical/geospatial data
+        ↓
+PHASE 6
+500m spatial grid
+        ↓
+PHASE 7
+GIS risk map
+        ↓
+PHASE 8
+FastAPI
+        ↓
+PHASE 9
+PostgreSQL/PostGIS
+        ↓
+PHASE 10
+Cellular Automata
+        ↓
+PHASE 11
+12-hour spread visualization
+        ↓
+PHASE 12
+Satellite integration
+        ↓
+PHASE 13
+Advanced spatial/deep models
+        ↓
+PHASE 14
+Physics-informed simulation
+        ↓
+PHASE 15
+Deployment
+23. Definition of "done"
+A component is not complete merely because code exists.
+It is complete when:
+Code
+ ↓
+Runs
+ ↓
+Tested
+ ↓
+Output validated
+ ↓
+Documented
+ ↓
+Connected to next layer
+24. Core principle
+The project should evolve from:
+"Can I predict fire from weather?"
+to:
+"Can I estimate fire risk for every location?"
+and finally:
+"Can I estimate where a fire will start,
+how likely it is,
+and how it will spread over the next 12 hours?"
+Build toward that goal without pretending that a small prototype dataset is already an operational wildfire-warning system.

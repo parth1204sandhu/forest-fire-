@@ -8,9 +8,11 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "Algerian_forest_fires_dataset_UPDATE.csv"
 
-BASELINE_FEATURES = ("Temperature", "RH", "Ws", "Rain")
+WEATHER_FEATURES = ("Temperature", "RH", "Ws", "Rain")
 FIRE_INDEX_FEATURES = ("FFMC", "DMC", "DC", "ISI", "BUI", "FWI")
+BASELINE_FEATURES = (*WEATHER_FEATURES, *FIRE_INDEX_FEATURES)
 TARGET_COLUMN = "Classes"
+TARGET_MAPPING = {"not fire": 0, "fire": 1}
 NUMERIC_COLUMNS = (
     "day",
     "month",
@@ -42,6 +44,9 @@ def load_data(
     for column in NUMERIC_COLUMNS:
         if column in data.columns:
             data[column] = pd.to_numeric(data[column], errors="coerce")
+
+    if "day" in data.columns:
+        data = data.dropna(subset=["day"])
 
     data[TARGET_COLUMN] = (
         data[TARGET_COLUMN]
